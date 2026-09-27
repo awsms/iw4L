@@ -22,7 +22,7 @@ use ui::{MenuEnabled, UiLayer};
 use crate::{
     BINDABLE_KEYS, ConsoleCommand, ConsoleEditor, ConsoleInputState, KeyBinds,
     binds::{BindInputs, host_keynum},
-    gamepad::{ControllerInputState, apply_controller},
+    gamepad::{ControllerInputState, apply_controller, apply_controller_with_akimbo},
     is_bind_command,
     registry::ConsoleRegistry,
     suggest::{SuggestSpan, SuggestTone, suggestion_spans},
@@ -428,6 +428,9 @@ fn publish_client_action_input(
     menu: Res<MenuEnabled>,
     mut hud_input: ResMut<frame::HudInputView>,
     settings: Res<frame::GameSettings>,
+    prediction: Res<net::ClientPredictionState>,
+    presented: Res<PresentedSnapshot>,
+    local: Res<net::LocalPresentClient>,
     mut out: ResMut<ClientActionInput>,
 ) {
     hud_input.menu_open = menu.0;
@@ -520,13 +523,19 @@ fn publish_client_action_input(
         return;
     }
 
-    (out.pad_move, out.pad_look) = apply_controller(
+    let akimbo = prediction
+        .0
+        .predicted_local()
+        .or_else(|| presented.player(local.0))
+        .is_some_and(|ps| ps.last_weapon_hand == 1);
+    (out.pad_move, out.pad_look) = apply_controller_with_akimbo(
         selected,
         &settings,
         &mut out.client,
         &mut controller,
         now,
         frame,
+        akimbo,
     );
 
     let inputs = BindInputs::new(&keys, &mouse_buttons);

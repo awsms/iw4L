@@ -1386,6 +1386,10 @@ pub fn options(host: Host<'_>) -> Screen {
                 }
                 return options_screen("options", widgets);
             }
+            if state.depth == OptionsDepth::Controller {
+                widgets.extend(controller_options(settings));
+                return options_screen("options", widgets);
+            }
             widgets.push(retail_title(
                 "options/page_title",
                 248.0,
@@ -1397,6 +1401,7 @@ pub fn options(host: Host<'_>) -> Screen {
                 ("options/movement", "Movement"),
                 ("options/actions", "Actions"),
                 ("options/look", "Look"),
+                ("options/controller", "Controller"),
             ]
             .into_iter()
             .enumerate()
@@ -1409,123 +1414,6 @@ pub fn options(host: Host<'_>) -> Screen {
                     Vec::new(),
                 ));
             }
-        }
-        OptionsTab::Controller => {
-            widgets.push(retail_title(
-                "options/page_title",
-                248.0,
-                28.0,
-                240.0,
-                "CONTROLLER",
-            ));
-            let buttons = settings.controller_button_layout;
-            let sticks = settings.controller_stick_layout;
-            widgets.extend([
-                cycler(
-                    "options/controller_buttons",
-                    238.0,
-                    56.0,
-                    "Button Layout",
-                    buttons.label(),
-                    UiIntent::SetSetting {
-                        key: crate::SettingKey::ControllerButtonLayout,
-                        value: crate::SettingValue::ControllerButtonLayout(buttons.step(1)),
-                    },
-                    Some(UiIntent::SetSetting {
-                        key: crate::SettingKey::ControllerButtonLayout,
-                        value: crate::SettingValue::ControllerButtonLayout(buttons.step(-1)),
-                    }),
-                    "Default, Tactical, Lefty, or Nomad button mapping.",
-                ),
-                cycler(
-                    "options/controller_sticks",
-                    238.0,
-                    78.0,
-                    "Stick Layout",
-                    sticks.label(),
-                    UiIntent::SetSetting {
-                        key: crate::SettingKey::ControllerStickLayout,
-                        value: crate::SettingValue::ControllerStickLayout(sticks.step(1)),
-                    },
-                    Some(UiIntent::SetSetting {
-                        key: crate::SettingKey::ControllerStickLayout,
-                        value: crate::SettingValue::ControllerStickLayout(sticks.step(-1)),
-                    }),
-                    "Southpaw swaps the sticks; Legacy swaps their horizontal axes.",
-                ),
-                slider(
-                    "options/controller_sensitivity",
-                    238.0,
-                    100.0,
-                    "Look Sensitivity",
-                    settings.controller_sensitivity,
-                    0.1,
-                    5.0,
-                    0.1,
-                    crate::SettingKey::ControllerSensitivity,
-                    "Controller look speed multiplier. Default: 1.0.",
-                ),
-                cycler(
-                    "options/controller_invert",
-                    238.0,
-                    122.0,
-                    "Invert Vertical Look",
-                    yes_no(settings.controller_invert_pitch),
-                    UiIntent::SetSetting {
-                        key: crate::SettingKey::ControllerInvertPitch,
-                        value: crate::SettingValue::Bool(!settings.controller_invert_pitch),
-                    },
-                    None,
-                    "Invert the controller's vertical look direction.",
-                ),
-                slider(
-                    "options/controller_move_deadzone",
-                    238.0,
-                    144.0,
-                    "Move Dead Zone",
-                    settings.controller_move_deadzone,
-                    0.0,
-                    0.4,
-                    0.02,
-                    crate::SettingKey::ControllerMoveDeadzone,
-                    "Increase if the movement stick drifts at rest.",
-                ),
-                slider(
-                    "options/controller_look_deadzone",
-                    238.0,
-                    166.0,
-                    "Look Dead Zone",
-                    settings.controller_look_deadzone,
-                    0.0,
-                    0.4,
-                    0.02,
-                    crate::SettingKey::ControllerLookDeadzone,
-                    "Increase if the look stick drifts at rest.",
-                ),
-                cycler(
-                    "options/controller_rumble",
-                    238.0,
-                    188.0,
-                    "Vibration",
-                    yes_no(settings.controller_rumble),
-                    UiIntent::SetSetting {
-                        key: crate::SettingKey::ControllerRumble,
-                        value: crate::SettingValue::Bool(!settings.controller_rumble),
-                    },
-                    None,
-                    "Enable controller vibration during gameplay.",
-                ),
-            ]);
-            let mut test = retail_button(
-                "options/controller_test_rumble",
-                238.0,
-                210.0,
-                "Test Vibration",
-                vec![ScreenCmd::Emit(UiIntent::TestControllerRumble)],
-            );
-            test.help = Some("Play a short vibration on the connected controller.".into());
-            widgets.push(test);
-            widgets.extend(controller_map_preview(buttons));
         }
         OptionsTab::Multiplayer => {
             widgets.push(retail_title(
@@ -1590,6 +1478,126 @@ pub fn options(host: Host<'_>) -> Screen {
         widgets.extend(rename_modal(buffer));
     }
     options_screen("options", widgets)
+}
+
+fn controller_options(settings: &frame::GameSettings) -> Vec<Widget> {
+    let mut widgets = Vec::new();
+    widgets.push(retail_title(
+        "options/page_title",
+        248.0,
+        28.0,
+        240.0,
+        "CONTROLLER",
+    ));
+    let buttons = settings.controller_button_layout;
+    let sticks = settings.controller_stick_layout;
+    widgets.extend([
+        cycler(
+            "options/controller_buttons",
+            238.0,
+            56.0,
+            "Button Layout",
+            buttons.label(),
+            UiIntent::SetSetting {
+                key: crate::SettingKey::ControllerButtonLayout,
+                value: crate::SettingValue::ControllerButtonLayout(buttons.step(1)),
+            },
+            Some(UiIntent::SetSetting {
+                key: crate::SettingKey::ControllerButtonLayout,
+                value: crate::SettingValue::ControllerButtonLayout(buttons.step(-1)),
+            }),
+            "Default, Tactical, Lefty, or Nomad button mapping.",
+        ),
+        cycler(
+            "options/controller_sticks",
+            238.0,
+            78.0,
+            "Stick Layout",
+            sticks.label(),
+            UiIntent::SetSetting {
+                key: crate::SettingKey::ControllerStickLayout,
+                value: crate::SettingValue::ControllerStickLayout(sticks.step(1)),
+            },
+            Some(UiIntent::SetSetting {
+                key: crate::SettingKey::ControllerStickLayout,
+                value: crate::SettingValue::ControllerStickLayout(sticks.step(-1)),
+            }),
+            "Southpaw swaps the sticks; Legacy swaps their horizontal axes.",
+        ),
+        slider(
+            "options/controller_sensitivity",
+            238.0,
+            100.0,
+            "Look Sensitivity",
+            settings.controller_sensitivity,
+            0.1,
+            5.0,
+            0.1,
+            crate::SettingKey::ControllerSensitivity,
+            "Controller look speed multiplier. Default: 1.0.",
+        ),
+        cycler(
+            "options/controller_invert",
+            238.0,
+            122.0,
+            "Invert Vertical Look",
+            yes_no(settings.controller_invert_pitch),
+            UiIntent::SetSetting {
+                key: crate::SettingKey::ControllerInvertPitch,
+                value: crate::SettingValue::Bool(!settings.controller_invert_pitch),
+            },
+            None,
+            "Invert the controller's vertical look direction.",
+        ),
+        slider(
+            "options/controller_move_deadzone",
+            238.0,
+            144.0,
+            "Move Dead Zone",
+            settings.controller_move_deadzone,
+            0.0,
+            0.4,
+            0.02,
+            crate::SettingKey::ControllerMoveDeadzone,
+            "Increase if the movement stick drifts at rest.",
+        ),
+        slider(
+            "options/controller_look_deadzone",
+            238.0,
+            166.0,
+            "Look Dead Zone",
+            settings.controller_look_deadzone,
+            0.0,
+            0.4,
+            0.02,
+            crate::SettingKey::ControllerLookDeadzone,
+            "Increase if the look stick drifts at rest.",
+        ),
+        cycler(
+            "options/controller_rumble",
+            238.0,
+            188.0,
+            "Vibration",
+            yes_no(settings.controller_rumble),
+            UiIntent::SetSetting {
+                key: crate::SettingKey::ControllerRumble,
+                value: crate::SettingValue::Bool(!settings.controller_rumble),
+            },
+            None,
+            "Enable controller vibration during gameplay.",
+        ),
+    ]);
+    let mut test = retail_button(
+        "options/controller_test_rumble",
+        238.0,
+        210.0,
+        "Test Vibration",
+        vec![ScreenCmd::Emit(UiIntent::TestControllerRumble)],
+    );
+    test.help = Some("Play a short vibration on the connected controller.".into());
+    widgets.push(test);
+    widgets.extend(controller_map_preview(buttons));
+    widgets
 }
 
 fn controller_map_preview(layout: frame::ControllerButtonLayout) -> Vec<Widget> {
@@ -1836,7 +1844,7 @@ fn options_tabs(selected: OptionsTab) -> Vec<Widget> {
     widgets.push(tinted_panel(
         "options/tab_divider",
         64.0,
-        186.0,
+        164.0,
         148.0,
         1.0,
         [1.0, 1.0, 1.0, 0.2],

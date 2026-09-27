@@ -5,6 +5,8 @@ mod clip_store;
 mod emit;
 mod entity_events;
 mod frontend;
+#[cfg(target_os = "linux")]
+mod linux_rumble;
 mod messages;
 mod objectives;
 mod pcm;

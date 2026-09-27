@@ -29,6 +29,7 @@ pub(super) struct ControllerInputState {
     layout: Option<ControllerButtonLayout>,
     crouched: bool,
     stance_down: bool,
+    akimbo: bool,
 }
 
 fn bindings(layout: ControllerButtonLayout) -> [(GamepadButton, u32); BINDINGS.len()] {
@@ -93,12 +94,27 @@ pub(super) fn apply_controller(
     now: i32,
     frame: u32,
 ) -> ([f32; 2], [f32; 2]) {
+    apply_controller_with_akimbo(selected, settings, client, state, now, frame, false)
+}
+
+pub(super) fn apply_controller_with_akimbo(
+    selected: Option<(Entity, &Gamepad)>,
+    settings: &GameSettings,
+    client: &mut ClientInput,
+    state: &mut ControllerInputState,
+    now: i32,
+    frame: u32,
+    akimbo: bool,
+) -> ([f32; 2], [f32; 2]) {
     let selected_entity = selected.map(|(entity, _)| entity);
-    if selected_entity != state.selected || state.layout != Some(settings.controller_button_layout)
+    if selected_entity != state.selected
+        || state.layout != Some(settings.controller_button_layout)
+        || state.akimbo != akimbo
     {
         release_all(client, now, frame);
         state.selected = selected_entity;
         state.layout = Some(settings.controller_button_layout);
+        state.akimbo = akimbo;
         state.crouched = false;
         state.stance_down = false;
         input_iw4::cl_set_ads(client, false);
@@ -107,7 +123,14 @@ pub(super) fn apply_controller(
         return ([0.0; 2], [0.0; 2]);
     };
 
-    let bindings = bindings(settings.controller_button_layout);
+    let mut bindings = bindings(settings.controller_button_layout);
+    if akimbo {
+        // The weapon simulation uses THROW for the right hand and ATTACK for
+        // the left hand. Keep the user's fire trigger on the right hand.
+        for (_, command) in &mut bindings[5..=6] {
+            *command = if *command == 1 { 13 } else { 1 };
+        }
+    }
     let stance_button = bindings.iter().find(|(_, id)| *id == 35).unwrap().0;
     let stance = pad.pressed(stance_button);
     if stance && !state.stance_down {
@@ -367,5 +390,53 @@ mod tests {
             16,
         );
         assert!(!client.using_ads);
+    }
+
+    #[test]
+    fn akimbo_triggers_fire_matching_hands_and_restore_aim() {
+        let mut pad = Gamepad::default();
+        let mut client = ClientInput::default();
+        let mut state = ControllerInputState::default();
+        let settings = GameSettings::default();
+        let id = Entity::PLACEHOLDER;
+
+        pad.digital_mut().press(GamepadButton::RightTrigger2);
+        apply_controller_with_akimbo(
+            Some((id, &pad)),
+            &settings,
+            &mut client,
+            &mut state,
+            100,
+            16,
+            true,
+        );
+        assert!(client.kb.throw_btn.active);
+        assert!(!client.kb.attack.active);
+
+        pad.digital_mut().press(GamepadButton::LeftTrigger2);
+        apply_controller_with_akimbo(
+            Some((id, &pad)),
+            &settings,
+            &mut client,
+            &mut state,
+            116,
+            16,
+            true,
+        );
+        assert!(client.kb.throw_btn.active);
+        assert!(client.kb.attack.active);
+
+        pad.digital_mut().release(GamepadButton::RightTrigger2);
+        apply_controller_with_akimbo(
+            Some((id, &pad)),
+            &settings,
+            &mut client,
+            &mut state,
+            132,
+            16,
+            false,
+        );
+        assert!(!client.kb.attack.active);
+        assert!(client.kb.speed.active);
     }
 }

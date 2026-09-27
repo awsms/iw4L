@@ -11,6 +11,9 @@ use std::collections::BTreeSet;
 pub const KEY_FRAME_MSEC_MAX: u32 = 200;
 const PAD_YAW_DEGREES_PER_SECOND: f32 = 180.0;
 const PAD_PITCH_DEGREES_PER_SECOND: f32 = 120.0;
+// Match IW4x's ADS to hip turn-rate ratios (yaw 90/260, pitch 55/90).
+const PAD_ADS_YAW_SCALE: f32 = 90.0 / 260.0;
+const PAD_ADS_PITCH_SCALE: f32 = 55.0 / 90.0;
 
 pub fn com_frame_time_msec(elapsed_secs: f32) -> i32 {
     (elapsed_secs * 1000.0).max(1.0) as i32
@@ -148,14 +151,17 @@ pub fn build_usercmd(input: &mut ClientActionInput, look: &LookState, server_tim
     );
     let (mouse_pitch, mouse_yaw) = mouse_move_angles(mx, my, input.m_yaw, input.m_pitch);
     let pad_frame = (frame as f32 / 1000.0).min(0.05);
+    let ads = bits & buttons::ADS != 0;
     let pad_pitch = (-input.pad_look[1]
         * PAD_PITCH_DEGREES_PER_SECOND
+        * if ads { PAD_ADS_PITCH_SCALE } else { 1.0 }
         * pad_frame
         * ANGLE2SHORT
         * input.pad_sensitivity
         * if input.pad_invert_pitch { -1.0 } else { 1.0 }) as i32;
     let pad_yaw = (-input.pad_look[0]
         * PAD_YAW_DEGREES_PER_SECOND
+        * if ads { PAD_ADS_YAW_SCALE } else { 1.0 }
         * pad_frame
         * ANGLE2SHORT
         * input.pad_sensitivity) as i32;
@@ -237,5 +243,20 @@ mod tests {
         input.pad_sensitivity = 1.0;
         let cmd = build_usercmd(&mut input, &LookState::default(), 0);
         assert!(cmd.angles[0] < original);
+    }
+
+    #[test]
+    fn controller_turns_slower_while_aiming() {
+        let mut input = ClientActionInput {
+            pad_look: [1.0, 1.0],
+            frame_msec: 50,
+            ..Default::default()
+        };
+        let hip = build_usercmd(&mut input, &LookState::default(), 0);
+        input.client.kb.speed.active = true;
+        let ads = build_usercmd(&mut input, &LookState::default(), 0);
+        assert!(ads.buttons & buttons::ADS != 0);
+        assert!(ads.angles[0].abs() < hip.angles[0].abs());
+        assert!(ads.angles[1].abs() < hip.angles[1].abs());
     }
 }

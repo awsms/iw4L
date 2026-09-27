@@ -17,17 +17,15 @@ pub enum OptionsTab {
     Video,
     Audio,
     Controls,
-    Controller,
     Multiplayer,
     Game,
 }
 
 impl OptionsTab {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 5] = [
         Self::Video,
         Self::Audio,
         Self::Controls,
-        Self::Controller,
         Self::Multiplayer,
         Self::Game,
     ];
@@ -41,9 +39,8 @@ impl OptionsTab {
             0 => Self::Video,
             1 => Self::Audio,
             2 => Self::Controls,
-            3 => Self::Controller,
-            4 => Self::Multiplayer,
-            5 => Self::Game,
+            3 => Self::Multiplayer,
+            4 => Self::Game,
             _ => return None,
         })
     }
@@ -53,7 +50,6 @@ impl OptionsTab {
             Self::Video => "Video",
             Self::Audio => "Audio",
             Self::Controls => "Controls",
-            Self::Controller => "Controller",
             Self::Multiplayer => "Multiplayer",
             Self::Game => "Game",
         }
@@ -66,6 +62,7 @@ pub enum OptionsDepth {
     Sections,
     SectionRows,
     ControlBinds,
+    Controller,
     ResolutionPicker,
 }
 
@@ -135,7 +132,6 @@ impl OptionsState {
             OptionsTab::Video => "options/resolution",
             OptionsTab::Audio => "options/volume",
             OptionsTab::Controls => OptionsControlGroup::Movement.widget_id(),
-            OptionsTab::Controller => "options/controller_buttons",
             OptionsTab::Multiplayer => "options/player_name",
             OptionsTab::Game => "options/sensitivity",
         }
@@ -153,6 +149,11 @@ impl OptionsState {
                 self.depth = OptionsDepth::SectionRows;
                 self.touch();
                 Some(self.control_group.widget_id().to_owned())
+            }
+            OptionsDepth::Controller => {
+                self.depth = OptionsDepth::SectionRows;
+                self.touch();
+                Some("options/controller".to_owned())
             }
             OptionsDepth::ResolutionPicker => {
                 self.depth = OptionsDepth::SectionRows;
@@ -175,21 +176,23 @@ pub(crate) fn options_widget_is_active(state: &OptionsState, id: &str) -> bool {
                 "options/resolution" | "options/fullscreen" | "options/vsync" | "options/fov"
             ),
             OptionsTab::Audio => id == "options/volume",
-            OptionsTab::Controls => OptionsControlGroup::from_widget_id(id).is_some(),
-            OptionsTab::Controller => matches!(
-                id,
-                "options/controller_buttons"
-                    | "options/controller_sticks"
-                    | "options/controller_sensitivity"
-                    | "options/controller_invert"
-                    | "options/controller_move_deadzone"
-                    | "options/controller_look_deadzone"
-                    | "options/controller_rumble"
-                    | "options/controller_test_rumble"
-            ),
+            OptionsTab::Controls => {
+                OptionsControlGroup::from_widget_id(id).is_some() || id == "options/controller"
+            }
             OptionsTab::Multiplayer => id == "options/player_name",
             OptionsTab::Game => matches!(id, "options/sensitivity" | "options/invert_mouse"),
         },
+        OptionsDepth::Controller => matches!(
+            id,
+            "options/controller_buttons"
+                | "options/controller_sticks"
+                | "options/controller_sensitivity"
+                | "options/controller_invert"
+                | "options/controller_move_deadzone"
+                | "options/controller_look_deadzone"
+                | "options/controller_rumble"
+                | "options/controller_test_rumble"
+        ),
         OptionsDepth::ControlBinds => id.starts_with("options/binds/"),
         OptionsDepth::ResolutionPicker => {
             id == "options/resolution_cancel" || id.starts_with("options/resolution_choice/")
@@ -355,6 +358,16 @@ pub(crate) fn drive_options_navigation(
         if id == "options/resolution_cancel" && state.depth == OptionsDepth::ResolutionPicker {
             state.depth = OptionsDepth::SectionRows;
             focus.widget = Some("options/resolution".into());
+            state.touch();
+            pulse.0 = false;
+            continue;
+        }
+        if state.tab == OptionsTab::Controls
+            && state.depth == OptionsDepth::SectionRows
+            && id == "options/controller"
+        {
+            state.depth = OptionsDepth::Controller;
+            focus.widget = Some("options/controller_buttons".into());
             state.touch();
             pulse.0 = false;
             continue;
