@@ -867,8 +867,9 @@ pub fn pm_weapon_ordinary(
         hand.burst_latch = true;
     }
 
-    let reload = cmd.buttons & BUTTON_RELOAD != 0;
-    let reload_edge = reload && cmd.old_buttons & BUTTON_RELOAD == 0;
+    let reload_buttons = BUTTON_RELOAD | playerstate_iw4::buttons::USE_RELOAD;
+    let reload = cmd.buttons & reload_buttons != 0;
+    let reload_edge = reload && cmd.old_buttons & reload_buttons == 0;
     if crate::reload::pm_weapon_process_input_wants_reload(hand, facts, reload_edge, cmd.pm_flags)
         && pm_begin_weapon_reload(hand, facts)
     {
@@ -1383,5 +1384,35 @@ pub fn spawn_weapon_hand(weapon: u32, facts: &WeaponCombatFacts) -> WeaponHandSt
         delayed_rechamber: false,
         weapon_restrict_kick_time: 0,
         quick_reload: facts.dual_mag.is_some(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn combined_use_reload_starts_weapon_reload() {
+        let mut hand = [WeaponHandState {
+            weapon: 1,
+            clip: 5,
+            stock: 30,
+            ..Default::default()
+        }];
+        let facts = WeaponCombatFacts {
+            clip_size: 30,
+            fire_time_ms: 100,
+            reload_time_ms: 100,
+            ..Default::default()
+        };
+        let mut cmd = WeaponCmd {
+            buttons: playerstate_iw4::buttons::USE_RELOAD,
+            cmd_weapon: 1,
+            cmd_weapon_owned: true,
+            ..Default::default()
+        };
+
+        pm_weapon_hands(&mut hand, &facts, &mut cmd, 0);
+        assert_eq!(hand[0].weaponstate, WeaponState::Reloading as i32);
     }
 }

@@ -3,11 +3,10 @@ use frame::{ControllerButtonLayout, ControllerStickLayout, GameSettings};
 use input_iw4::{ClientInput, cl_key_event};
 
 const FIRST_KEY: usize = 128;
-const BINDINGS: [(GamepadButton, u32); 16] = [
+const BINDINGS: [(GamepadButton, u32); 15] = [
     (GamepadButton::South, 25),        // jump
     (GamepadButton::East, 35),         // crouch, toggled below
-    (GamepadButton::West, 49),         // use
-    (GamepadButton::West, 51),         // reload
+    (GamepadButton::West, 11),         // use/reload
     (GamepadButton::North, 66),        // next weapon
     (GamepadButton::RightTrigger2, 1), // fire
     (GamepadButton::LeftTrigger2, 13), // hold aim
@@ -38,20 +37,20 @@ fn bindings(layout: ControllerButtonLayout) -> [(GamepadButton, u32); BINDINGS.l
         ControllerButtonLayout::Default => {}
         ControllerButtonLayout::Tactical => {
             result[1].1 = 3; // B: melee
-            result[10].1 = 35; // R3: crouch
+            result[9].1 = 35; // R3: crouch
         }
         ControllerButtonLayout::Lefty => {
-            result[5].1 = 13; // RT: aim
-            result[6].1 = 1; // LT: fire
-            result[7].1 = 7; // RB: tactical
-            result[8].1 = 5; // LB: frag
-            result[9].1 = 3; // L3: melee
-            result[10].1 = 59; // R3: sprint
+            result[4].1 = 13; // RT: aim
+            result[5].1 = 1; // LT: fire
+            result[6].1 = 7; // RB: tactical
+            result[7].1 = 5; // LB: frag
+            result[8].1 = 3; // L3: melee
+            result[9].1 = 59; // R3: sprint
         }
         ControllerButtonLayout::Nomad => {
             result[1].1 = 3; // B: melee
-            result[6].1 = 57; // LT: toggle aim
-            result[10].1 = 35; // R3: crouch
+            result[5].1 = 57; // LT: toggle aim
+            result[9].1 = 35; // R3: crouch
         }
     }
     result
@@ -127,7 +126,7 @@ pub(super) fn apply_controller_with_akimbo(
     if akimbo {
         // The weapon simulation uses THROW for the right hand and ATTACK for
         // the left hand. Keep the user's fire trigger on the right hand.
-        for (_, command) in &mut bindings[5..=6] {
+        for (_, command) in &mut bindings[4..=5] {
             *command = if *command == 1 { 13 } else { 1 };
         }
     }
@@ -192,6 +191,43 @@ mod tests {
         let diagonal = stick_deadzone(Vec2::new(0.6, 0.8), 0.18);
         assert!((diagonal.x - 0.6).abs() < 0.0001);
         assert!((diagonal.y - 0.8).abs() < 0.0001);
+    }
+
+    #[test]
+    fn west_button_uses_combined_use_reload_binding() {
+        let mut pad = Gamepad::default();
+        let mut client = ClientInput::default();
+        let mut state = ControllerInputState::default();
+        let settings = GameSettings::default();
+
+        pad.digital_mut().press(GamepadButton::West);
+        apply_controller(
+            Some((Entity::PLACEHOLDER, &pad)),
+            &settings,
+            &mut client,
+            &mut state,
+            100,
+            16,
+        );
+        assert!(client.kb.usereload.active);
+        assert!(!client.kb.activate.active);
+        assert!(!client.kb.reload.active);
+        let bits = input_iw4::cmd_buttons(&client.kb);
+        assert_eq!(
+            bits & playerstate_iw4::buttons::USE_RELOAD,
+            playerstate_iw4::buttons::USE_RELOAD
+        );
+
+        pad.digital_mut().release(GamepadButton::West);
+        apply_controller(
+            Some((Entity::PLACEHOLDER, &pad)),
+            &settings,
+            &mut client,
+            &mut state,
+            116,
+            16,
+        );
+        assert!(!client.kb.usereload.active);
     }
 
     #[test]

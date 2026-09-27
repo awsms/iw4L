@@ -640,7 +640,7 @@ fn loop_input(
     UseHoldLoopInput {
         alive: is_really_alive(world, id, ps),
         touching: is_touching(ps, object),
-        use_pressed: buttons_now & buttons::USE != 0,
+        use_pressed: buttons_now & (buttons::USE | buttons::USE_RELOAD) != 0,
         throwing_grenade: world.use_throwing_grenade(id),
         melee_pressed: buttons_now & buttons::MELEE_CHARGE != 0,
         weapon_ready,
