@@ -1276,10 +1276,18 @@ pub fn pm_weapon_hands(
     cmd.pm_flags = cmd.melee_charge.pm_flags;
     let last = last_hand.clamp(0, 1) as usize;
     let n = hands.len().min(last + 1);
+    // The first Y must not replace the left reload pose with sprint-in. The
+    // ordinary second-Y cancel then blends that pose back to idle.
+    let switching_wrist_twist = n == 2
+        && cmd.pm_flags & crate::sprint::PMF_SPRINTING != 0
+        && u32::from(cmd.cmd_weapon) != hands[0].weapon
+        && WeaponState::from_i32(hands[0].weaponstate).is_ok_and(WeaponState::is_sprint)
+        && WeaponState::from_i32(hands[1].weaponstate).is_ok_and(WeaponState::is_reload_family);
     for i in 0..n {
         let preserve_reload_during_sprint = i == 1
             && cmd.pm_flags & crate::sprint::PMF_SPRINTING != 0
-            && WeaponState::from_i32(hands[0].weaponstate).is_ok_and(WeaponState::is_sprint)
+            && (switching_wrist_twist
+                || WeaponState::from_i32(hands[0].weaponstate).is_ok_and(WeaponState::is_sprint))
             && WeaponState::from_i32(hands[1].weaponstate).is_ok_and(WeaponState::is_reload_family);
         hands[i].hand_index = i as u8;
         if let Some(ev) =
@@ -1477,5 +1485,111 @@ mod tests {
         pm_weapon_hands(&mut hands, &facts, &mut cmd, 1);
         assert_eq!(hands[0].weaponstate, WeaponState::SprintIn as i32);
         assert_eq!(hands[1].weaponstate, WeaponState::Reloading as i32);
+    }
+
+    #[test]
+    fn rapid_weapon_cycle_keeps_left_reload_until_idle_blend() {
+        let mut hands = [
+            WeaponHandState {
+                weapon: 1,
+                weaponstate: WeaponState::SprintLoop as i32,
+                weap_anim: crate::weap_anim::weap_anim_event::SPRINT_LOOP as i32,
+                clip: 30,
+                stock: 60,
+                ..Default::default()
+            },
+            WeaponHandState {
+                weapon: 1,
+                weaponstate: WeaponState::Reloading as i32,
+                weapon_time: 300,
+                weap_anim: crate::weap_anim::weap_anim_event::RELOAD as i32,
+                clip: 29,
+                stock: 60,
+                ..Default::default()
+            },
+        ];
+        let facts = WeaponCombatFacts {
+            clip_size: 30,
+            fire_time_ms: 100,
+            drop_time_ms: 200,
+            ..Default::default()
+        };
+        let mut cmd = WeaponCmd {
+            msec: 16,
+            pm_flags: crate::sprint::PMF_SPRINTING,
+            last_weapon_hand: 1,
+            cmd_weapon: 2,
+            cmd_weapon_owned: true,
+            ..Default::default()
+        };
+
+        pm_weapon_hands(&mut hands, &facts, &mut cmd, 1);
+        assert!(
+            hands
+                .iter()
+                .all(|hand| hand.weaponstate == WeaponState::Dropping as i32)
+        );
+        assert_eq!(
+            hands[1].weap_anim as u32 & crate::WEAP_ANIM_EVENT_MASK,
+            crate::weap_anim::weap_anim_event::RELOAD
+        );
+
+        cmd.cmd_weapon = 1;
+        let events = pm_weapon_hands(&mut hands, &facts, &mut cmd, 1);
+        assert_eq!(events, [None, None]);
+        for hand in hands {
+            assert_eq!(hand.weaponstate, WeaponState::Ready as i32);
+            assert_eq!(hand.weap_anim as u32 & crate::WEAP_ANIM_EVENT_MASK, 1);
+        }
+    }
+
+    #[test]
+    fn ordinary_akimbo_rapid_weapon_cycle_keeps_existing_cancel_behavior() {
+        let mut hands = [
+            WeaponHandState {
+                weapon: 1,
+                weaponstate: WeaponState::SprintLoop as i32,
+                weap_anim: crate::weap_anim::weap_anim_event::SPRINT_LOOP as i32,
+                clip: 30,
+                stock: 60,
+                ..Default::default()
+            },
+            WeaponHandState {
+                weapon: 1,
+                weaponstate: WeaponState::SprintLoop as i32,
+                weap_anim: crate::weap_anim::weap_anim_event::SPRINT_LOOP as i32,
+                clip: 30,
+                stock: 60,
+                ..Default::default()
+            },
+        ];
+        let facts = WeaponCombatFacts {
+            clip_size: 30,
+            fire_time_ms: 100,
+            drop_time_ms: 200,
+            ..Default::default()
+        };
+        let mut cmd = WeaponCmd {
+            msec: 16,
+            pm_flags: crate::sprint::PMF_SPRINTING,
+            last_weapon_hand: 1,
+            cmd_weapon: 2,
+            cmd_weapon_owned: true,
+            ..Default::default()
+        };
+
+        pm_weapon_hands(&mut hands, &facts, &mut cmd, 1);
+        assert!(
+            hands
+                .iter()
+                .all(|hand| hand.weaponstate == WeaponState::Dropping as i32)
+        );
+        cmd.cmd_weapon = 1;
+        let events = pm_weapon_hands(&mut hands, &facts, &mut cmd, 1);
+        assert_eq!(events, [None, None]);
+        for hand in hands {
+            assert_eq!(hand.weaponstate, WeaponState::Ready as i32);
+            assert_eq!(hand.weap_anim as u32 & crate::WEAP_ANIM_EVENT_MASK, 1);
+        }
     }
 }
