@@ -152,19 +152,22 @@ pub fn build_usercmd(input: &mut ClientActionInput, look: &LookState, server_tim
     let (mouse_pitch, mouse_yaw) = mouse_move_angles(mx, my, input.m_yaw, input.m_pitch);
     let pad_frame = (frame as f32 / 1000.0).min(0.05);
     let ads = bits & buttons::ADS != 0;
+    // Keep controller look speed in step with the current FOV, including scopes.
     let pad_pitch = (-input.pad_look[1]
         * PAD_PITCH_DEGREES_PER_SECOND
         * if ads { PAD_ADS_PITCH_SCALE } else { 1.0 }
         * pad_frame
         * ANGLE2SHORT
         * input.pad_sensitivity
+        * input.fov_scale
         * if input.pad_invert_pitch { -1.0 } else { 1.0 }) as i32;
     let pad_yaw = (-input.pad_look[0]
         * PAD_YAW_DEGREES_PER_SECOND
         * if ads { PAD_ADS_YAW_SCALE } else { 1.0 }
         * pad_frame
         * ANGLE2SHORT
-        * input.pad_sensitivity) as i32;
+        * input.pad_sensitivity
+        * input.fov_scale) as i32;
     let move_axis = |digital: f32, analog: f32| {
         if digital != 0.0 { digital } else { analog }
     };
@@ -258,5 +261,12 @@ mod tests {
         assert!(ads.buttons & buttons::ADS != 0);
         assert!(ads.angles[0].abs() < hip.angles[0].abs());
         assert!(ads.angles[1].abs() < hip.angles[1].abs());
+
+        // A sniper scope narrows the FOV after ADS has already engaged.
+        input.fov_scale = 0.3;
+        let scoped = build_usercmd(&mut input, &LookState::default(), 0);
+        assert!(scoped.buttons & buttons::ADS != 0);
+        assert!(scoped.angles[0].abs() < ads.angles[0].abs());
+        assert!(scoped.angles[1].abs() < ads.angles[1].abs());
     }
 }
