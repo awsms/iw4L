@@ -22,6 +22,7 @@ use ui::{MenuEnabled, UiLayer};
 use crate::{
     BINDABLE_KEYS, ConsoleCommand, ConsoleEditor, ConsoleInputState, KeyBinds,
     binds::{BindInputs, host_keynum},
+    gamepad::{ControllerInputState, apply_controller},
     is_bind_command,
     registry::ConsoleRegistry,
     suggest::{SuggestSpan, SuggestTone, suggestion_spans},
@@ -418,6 +419,8 @@ fn publish_client_action_input(
     time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
+    gamepads: Query<(Entity, &Gamepad)>,
+    mut controller: Local<ControllerInputState>,
     mut motion: MessageReader<MouseMotion>,
     binds: Res<KeyBinds>,
     mut scripted: ResMut<ConsoleInputState>,
@@ -451,6 +454,8 @@ fn publish_client_action_input(
     }
     out.mouse_x = 0.0;
     out.mouse_y = 0.0;
+    out.pad_move = [0.0; 2];
+    out.pad_look = [0.0; 2];
     out.frame_msec = key_frame_msec(time.delta_secs());
     out.now_msec = com_frame_time_msec(time.elapsed_secs());
     out.sensitivity = settings.sensitivity;
@@ -466,6 +471,7 @@ fn publish_client_action_input(
     let frame = out.frame_msec;
 
     if console.open || menu.0 || keys.just_pressed(KeyCode::Escape) {
+        apply_controller(None, &mut out.client, &mut controller, now, frame);
         for _ in motion.read() {}
         for key_num in 0..input_iw4::KEY_COUNT {
             if out.client.keys[key_num].down != 0 {
@@ -474,6 +480,10 @@ fn publish_client_action_input(
         }
         return;
     }
+
+    let selected = gamepads.iter().min_by_key(|(entity, _)| entity.to_bits());
+    (out.pad_move, out.pad_look) =
+        apply_controller(selected, &mut out.client, &mut controller, now, frame);
 
     let inputs = BindInputs::new(&keys, &mouse_buttons);
     for (button, id) in binds.iter() {

@@ -760,6 +760,8 @@ pub fn sample_client_input(
     if frozen {
         actions.mouse_x = 0.0;
         actions.mouse_y = 0.0;
+        actions.pad_move = [0.0; 2];
+        actions.pad_look = [0.0; 2];
     }
     let remote_mouse = presented
         .snapshot()

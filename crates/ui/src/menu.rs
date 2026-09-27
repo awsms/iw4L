@@ -1,4 +1,5 @@
 use bevy::ecs::system::SystemParam;
+use bevy::input::gamepad::GamepadButton;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use frame::ClientSet;
@@ -122,6 +123,7 @@ impl Plugin for MenuPlugin {
                 Update,
                 (
                     (
+                        emit_gamepad_shell_commands,
                         sync_class_select_shell,
                         tear_down_menu_when_disabled,
                         ensure_main_open,
@@ -163,6 +165,64 @@ impl Plugin for MenuPlugin {
                     .chain()
                     .in_set(ClientSet::Ui),
             );
+    }
+}
+
+#[derive(Default)]
+struct GamepadMenuRepeat {
+    direction: Option<crate::NavDir>,
+    remaining: f32,
+}
+
+fn emit_gamepad_shell_commands(
+    time: Res<Time>,
+    pads: Query<(Entity, &Gamepad)>,
+    enabled: Res<MenuEnabled>,
+    mut repeat: Local<GamepadMenuRepeat>,
+    mut commands: MessageWriter<MenuShellCmd>,
+) {
+    let Some((_, pad)) = pads.iter().min_by_key(|(entity, _)| entity.to_bits()) else {
+        *repeat = GamepadMenuRepeat::default();
+        return;
+    };
+    if pad.just_pressed(GamepadButton::Start) {
+        commands.write(MenuShellCmd::Back);
+    }
+    if !enabled.0 {
+        *repeat = GamepadMenuRepeat::default();
+        return;
+    }
+    if pad.just_pressed(GamepadButton::East) {
+        commands.write(MenuShellCmd::Back);
+    }
+    if pad.just_pressed(GamepadButton::South) {
+        commands.write(MenuShellCmd::Accept);
+    }
+
+    let stick = pad.left_stick();
+    let direction = if pad.pressed(GamepadButton::DPadUp) || stick.y > 0.55 {
+        Some(crate::NavDir::Up)
+    } else if pad.pressed(GamepadButton::DPadDown) || stick.y < -0.55 {
+        Some(crate::NavDir::Down)
+    } else if pad.pressed(GamepadButton::DPadLeft) || stick.x < -0.55 {
+        Some(crate::NavDir::Left)
+    } else if pad.pressed(GamepadButton::DPadRight) || stick.x > 0.55 {
+        Some(crate::NavDir::Right)
+    } else {
+        None
+    };
+    if direction != repeat.direction {
+        repeat.direction = direction;
+        repeat.remaining = 0.35;
+        if let Some(direction) = direction {
+            commands.write(MenuShellCmd::Nav(direction));
+        }
+    } else if let Some(direction) = direction {
+        repeat.remaining -= time.delta_secs();
+        if repeat.remaining <= 0.0 {
+            commands.write(MenuShellCmd::Nav(direction));
+            repeat.remaining = 0.1;
+        }
     }
 }
 

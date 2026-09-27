@@ -9,6 +9,8 @@ use playerstate_iw4::buttons;
 use std::collections::BTreeSet;
 
 pub const KEY_FRAME_MSEC_MAX: u32 = 200;
+const PAD_YAW_DEGREES_PER_SECOND: f32 = 180.0;
+const PAD_PITCH_DEGREES_PER_SECOND: f32 = 120.0;
 
 pub fn com_frame_time_msec(elapsed_secs: f32) -> i32 {
     (elapsed_secs * 1000.0).max(1.0) as i32
@@ -31,6 +33,9 @@ pub struct ClientActionInput {
     pub scripted_ids: BTreeSet<u32>,
     pub mouse_x: f32,
     pub mouse_y: f32,
+    /// Left and right sticks after their radial dead zones, X then Y.
+    pub pad_move: [f32; 2],
+    pub pad_look: [f32; 2],
     pub sensitivity: f32,
     pub mouse_accel: f32,
     pub fov_scale: f32,
@@ -55,6 +60,8 @@ impl Default for ClientActionInput {
             scripted_ids: BTreeSet::new(),
             mouse_x: 0.0,
             mouse_y: 0.0,
+            pad_move: [0.0; 2],
+            pad_look: [0.0; 2],
             sensitivity: 5.0,
             mouse_accel: 0.0,
             fov_scale: 1.0,
@@ -136,17 +143,28 @@ pub fn build_usercmd(input: &mut ClientActionInput, look: &LookState, server_tim
         input.fov_scale,
     );
     let (mouse_pitch, mouse_yaw) = mouse_move_angles(mx, my, input.m_yaw, input.m_pitch);
+    let pad_frame = (frame as f32 / 1000.0).min(0.05);
+    let pad_pitch = (-input.pad_look[1]
+        * PAD_PITCH_DEGREES_PER_SECOND
+        * pad_frame
+        * ANGLE2SHORT
+        * input.m_pitch.signum()) as i32;
+    let pad_yaw =
+        (-input.pad_look[0] * PAD_YAW_DEGREES_PER_SECOND * pad_frame * ANGLE2SHORT) as i32;
+    let move_axis = |digital: f32, analog: f32| {
+        if digital != 0.0 { digital } else { analog }
+    };
 
     create_cmd(&CreateCmdInput {
         server_time,
         angles: look.angles,
         buttons: bits,
-        forwardmove: axis_to_move(axes.forward),
-        rightmove: axis_to_move(axes.right),
+        forwardmove: axis_to_move(move_axis(axes.forward, input.pad_move[1])),
+        rightmove: axis_to_move(move_axis(axes.right, input.pad_move[0])),
         mouse_pitch_delta: mouse_pitch,
         mouse_yaw_delta: mouse_yaw,
-        key_pitch_delta: 0,
-        key_yaw_delta: 0,
+        key_pitch_delta: pad_pitch,
+        key_yaw_delta: pad_yaw,
         frozen: false,
     })
 }
@@ -169,5 +187,27 @@ pub fn idle_usercmd(server_time: i32) -> UserCmd {
     UserCmd {
         server_time,
         ..UserCmd::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn controller_axes_reach_movement_and_view_angles() {
+        let mut input = ClientActionInput {
+            pad_move: [0.5, 1.0],
+            pad_look: [1.0, 1.0],
+            frame_msec: 1000,
+            ..Default::default()
+        };
+        let cmd = build_usercmd(&mut input, &LookState::default(), 42);
+        assert_eq!(cmd.server_time, 42);
+        assert_eq!(cmd.forwardmove, 127);
+        assert!(cmd.rightmove > 0);
+        // A long frame is capped at 50 ms so a stall cannot spin the view.
+        assert_eq!(cmd.angles[1], (-180.0_f32 * 0.05 * ANGLE2SHORT) as i32);
+        assert_eq!(cmd.angles[0], (-120.0_f32 * 0.05 * ANGLE2SHORT) as i32);
     }
 }
