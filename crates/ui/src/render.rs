@@ -115,6 +115,7 @@ fn spawn_widget(
         Content::Cycler { .. }
             | Content::Slider { .. }
             | Content::Bind { .. }
+            | Content::ControllerMapRow { .. }
             | Content::TextEdit { .. }
     );
     let clickable = interactive && widget.focusable && (!label.is_empty() || control);
@@ -122,7 +123,12 @@ fn spawn_widget(
         return false;
     }
     let panel_fill = matches!(widget.content, Content::Panel) && widget.style.fore_color[3] > 0.0;
-    if !clickable && label.is_empty() && bg_handle.is_none() && icon_handle.is_none() && !panel_fill
+    if !clickable
+        && label.is_empty()
+        && bg_handle.is_none()
+        && icon_handle.is_none()
+        && !panel_fill
+        && !control
     {
         return false;
     }
@@ -383,6 +389,56 @@ fn spawn_control_content(
     font_atlas: Option<&(&assets::FontDef, Handle<Image>, u32, u32)>,
     contain: f32,
 ) {
+    if let Content::ControllerMapRow {
+        glyph,
+        action,
+        color: badge_color,
+        round,
+    } = &widget.content
+    {
+        let badge_width = if *round { 18.0 } else { 27.0 } * contain;
+        row.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(6.0 * contain),
+                top: Val::Px(((height - 18.0 * contain) * 0.5).max(0.0)),
+                width: Val::Px(badge_width),
+                height: Val::Px(18.0 * contain),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(if *round { 9.0 } else { 4.0 } * contain)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(
+                badge_color[0],
+                badge_color[1],
+                badge_color[2],
+                badge_color[3],
+            )),
+            UI_PASS_FOCUS,
+            Pickable::IGNORE,
+        ))
+        .with_child((
+            Text::new(glyph.clone()),
+            game_text_font(font, font_px * 0.75),
+            TextColor(Color::WHITE),
+            UI_PASS_FOCUS,
+            Pickable::IGNORE,
+        ));
+        spawn_control_text(
+            row,
+            action,
+            font,
+            font_px * 0.8,
+            color,
+            41.0 * contain,
+            font_atlas,
+            contain,
+            widget.style.text_scale * 0.8,
+            height,
+        );
+        return;
+    }
     let (left, right) = match &widget.content {
         Content::Cycler { label, value, .. } => (label.as_str(), value.as_str()),
         Content::Bind { label, chord, .. } => (label.as_str(), chord.as_str()),

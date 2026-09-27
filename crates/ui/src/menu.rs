@@ -117,6 +117,7 @@ impl Plugin for MenuPlugin {
             .init_resource::<ActivatePulse>()
             .init_resource::<PointerActivation>()
             .add_message::<MenuShellCmd>()
+            .add_message::<frame::TestControllerRumble>()
             .add_message::<crate::UiIntent>()
             .add_systems(Startup, upload_menu_background)
             .add_systems(
@@ -178,6 +179,7 @@ fn emit_gamepad_shell_commands(
     time: Res<Time>,
     pads: Query<(Entity, &Gamepad)>,
     enabled: Res<MenuEnabled>,
+    settings: Res<frame::GameSettings>,
     mut repeat: Local<GamepadMenuRepeat>,
     mut commands: MessageWriter<MenuShellCmd>,
 ) {
@@ -199,7 +201,14 @@ fn emit_gamepad_shell_commands(
         commands.write(MenuShellCmd::Accept);
     }
 
-    let stick = pad.left_stick();
+    let stick = match settings.controller_stick_layout {
+        frame::ControllerStickLayout::Default | frame::ControllerStickLayout::Legacy => {
+            pad.left_stick()
+        }
+        frame::ControllerStickLayout::Southpaw | frame::ControllerStickLayout::LegacySouthpaw => {
+            pad.right_stick()
+        }
+    };
     let direction = if pad.pressed(GamepadButton::DPadUp) || stick.y > 0.55 {
         Some(crate::NavDir::Up)
     } else if pad.pressed(GamepadButton::DPadDown) || stick.y < -0.55 {

@@ -223,6 +223,31 @@ fn serialize_settings(settings: &frame::GameSettings, binds: &KeyBinds) -> Strin
         format!("master_volume={:.3}", settings.master_volume),
         format!("sensitivity={:.3}", settings.sensitivity),
         format!("invert_mouse={}", settings.invert_mouse),
+        format!(
+            "controller_button_layout={}",
+            settings.controller_button_layout.label()
+        ),
+        format!(
+            "controller_stick_layout={}",
+            settings.controller_stick_layout.label()
+        ),
+        format!(
+            "controller_sensitivity={:.3}",
+            settings.controller_sensitivity
+        ),
+        format!(
+            "controller_invert_pitch={}",
+            settings.controller_invert_pitch
+        ),
+        format!(
+            "controller_move_deadzone={:.3}",
+            settings.controller_move_deadzone
+        ),
+        format!(
+            "controller_look_deadzone={:.3}",
+            settings.controller_look_deadzone
+        ),
+        format!("controller_rumble={}", settings.controller_rumble),
         format!("player_name={safe_name}"),
         "unbindall".to_owned(),
     ];
@@ -285,6 +310,41 @@ fn parse_settings(source: &str, settings: &mut frame::GameSettings, binds: &mut 
                     settings.invert_mouse = value;
                 }
             }
+            "controller_button_layout" => {
+                if let Some(layout) = frame::ControllerButtonLayout::parse(value) {
+                    settings.controller_button_layout = layout;
+                }
+            }
+            "controller_stick_layout" => {
+                if let Some(layout) = frame::ControllerStickLayout::parse(value) {
+                    settings.controller_stick_layout = layout;
+                }
+            }
+            "controller_sensitivity" => {
+                if let Ok(value) = value.parse() {
+                    settings.controller_sensitivity = value;
+                }
+            }
+            "controller_invert_pitch" => {
+                if let Ok(value) = value.parse() {
+                    settings.controller_invert_pitch = value;
+                }
+            }
+            "controller_move_deadzone" => {
+                if let Ok(value) = value.parse() {
+                    settings.controller_move_deadzone = value;
+                }
+            }
+            "controller_look_deadzone" => {
+                if let Ok(value) = value.parse() {
+                    settings.controller_look_deadzone = value;
+                }
+            }
+            "controller_rumble" => {
+                if let Ok(value) = value.parse() {
+                    settings.controller_rumble = value;
+                }
+            }
             "player_name" => settings.player_name = value.to_owned(),
             _ => warn!("ignored unknown setting `{key}`"),
         }
@@ -303,5 +363,57 @@ fn parse_settings(source: &str, settings: &mut frame::GameSettings, binds: &mut 
         && !binds.iter().any(|(_, id)| id == 21)
     {
         binds.set(BindButton::Key(KeyCode::Digit4), 21);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn controller_options_survive_settings_roundtrip() {
+        let settings = frame::GameSettings {
+            controller_button_layout: frame::ControllerButtonLayout::Tactical,
+            controller_stick_layout: frame::ControllerStickLayout::Southpaw,
+            controller_sensitivity: 2.3,
+            controller_invert_pitch: true,
+            controller_move_deadzone: 0.2,
+            controller_look_deadzone: 0.1,
+            controller_rumble: false,
+            ..Default::default()
+        };
+        let mut loaded = frame::GameSettings::default();
+        let mut binds = KeyBinds::default();
+        parse_settings(
+            &serialize_settings(&settings, &binds),
+            &mut loaded,
+            &mut binds,
+        );
+        loaded.sanitize();
+        assert_eq!(
+            loaded.controller_button_layout,
+            settings.controller_button_layout
+        );
+        assert_eq!(
+            loaded.controller_stick_layout,
+            settings.controller_stick_layout
+        );
+        assert_eq!(
+            loaded.controller_sensitivity,
+            settings.controller_sensitivity
+        );
+        assert_eq!(
+            loaded.controller_invert_pitch,
+            settings.controller_invert_pitch
+        );
+        assert_eq!(
+            loaded.controller_move_deadzone,
+            settings.controller_move_deadzone
+        );
+        assert_eq!(
+            loaded.controller_look_deadzone,
+            settings.controller_look_deadzone
+        );
+        assert_eq!(loaded.controller_rumble, settings.controller_rumble);
     }
 }

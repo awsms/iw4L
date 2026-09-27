@@ -431,8 +431,27 @@ fn publish_client_action_input(
     mut out: ResMut<ClientActionInput>,
 ) {
     hud_input.menu_open = menu.0;
-    if binds.is_changed() || hud_input.use_key.is_none() {
-        hud_input.use_key = binds
+    let (mouse_delta, mouse_moved) = motion.read().fold((Vec2::ZERO, false), |(sum, moved), ev| {
+        (sum + ev.delta, moved || ev.delta.length_squared() > 0.0)
+    });
+    let selected = gamepads.iter().min_by_key(|(entity, _)| entity.to_bits());
+    let pad_activity = selected.is_some_and(|(_, pad)| {
+        GamepadButton::all()
+            .into_iter()
+            .any(|button| pad.just_pressed(button))
+            || pad.left_stick().length_squared() > 0.09
+            || pad.right_stick().length_squared() > 0.09
+    });
+    let keyboard_activity = keys.get_just_pressed().next().is_some()
+        || mouse_buttons.get_just_pressed().next().is_some()
+        || mouse_moved;
+    if selected.is_none() || keyboard_activity {
+        hud_input.controller_active = false;
+    } else if pad_activity {
+        hud_input.controller_active = true;
+    }
+    let keyboard_use = || {
+        binds
             .iter()
             .filter(|(button, _)| {
                 matches!(
@@ -441,9 +460,21 @@ fn publish_client_action_input(
                 )
             })
             .map(|(button, _)| crate::binds::display_button(button).to_uppercase())
-            .min();
-    }
-    if binds.is_changed() || hud_input.action_slot_keys.iter().all(Option::is_none) {
+            .min()
+    };
+    hud_input.use_key = if hud_input.controller_active {
+        Some("X".into())
+    } else {
+        keyboard_use()
+    };
+    if hud_input.controller_active {
+        hud_input.action_slot_keys = [
+            Some("D-PAD UP".into()),
+            Some("D-PAD DOWN".into()),
+            Some("D-PAD LEFT".into()),
+            Some("D-PAD RIGHT".into()),
+        ];
+    } else {
         hud_input.action_slot_keys = core::array::from_fn(|index| {
             binds
                 .iter()
@@ -459,6 +490,8 @@ fn publish_client_action_input(
     out.frame_msec = key_frame_msec(time.delta_secs());
     out.now_msec = com_frame_time_msec(time.elapsed_secs());
     out.sensitivity = settings.sensitivity;
+    out.pad_sensitivity = settings.controller_sensitivity;
+    out.pad_invert_pitch = settings.controller_invert_pitch;
     if out.m_yaw == 0.0 {
         out.m_yaw = 0.022;
     }
@@ -471,8 +504,14 @@ fn publish_client_action_input(
     let frame = out.frame_msec;
 
     if console.open || menu.0 || keys.just_pressed(KeyCode::Escape) {
-        apply_controller(None, &mut out.client, &mut controller, now, frame);
-        for _ in motion.read() {}
+        apply_controller(
+            None,
+            &settings,
+            &mut out.client,
+            &mut controller,
+            now,
+            frame,
+        );
         for key_num in 0..input_iw4::KEY_COUNT {
             if out.client.keys[key_num].down != 0 {
                 cl_key_event(&mut out.client, key_num, false, now, frame);
@@ -481,9 +520,14 @@ fn publish_client_action_input(
         return;
     }
 
-    let selected = gamepads.iter().min_by_key(|(entity, _)| entity.to_bits());
-    (out.pad_move, out.pad_look) =
-        apply_controller(selected, &mut out.client, &mut controller, now, frame);
+    (out.pad_move, out.pad_look) = apply_controller(
+        selected,
+        &settings,
+        &mut out.client,
+        &mut controller,
+        now,
+        frame,
+    );
 
     let inputs = BindInputs::new(&keys, &mouse_buttons);
     for (button, id) in binds.iter() {
@@ -526,10 +570,8 @@ fn publish_client_action_input(
     let (rx, ry) = scripted.mouse_rate().unwrap_or((0.0, 0.0));
     out.mouse_x += sx + rx;
     out.mouse_y += sy + ry;
-    for ev in motion.read() {
-        out.mouse_x += ev.delta.x;
-        out.mouse_y += ev.delta.y;
-    }
+    out.mouse_x += mouse_delta.x;
+    out.mouse_y += mouse_delta.y;
 }
 
 /// Hold the pointer for as long as gameplay owns it, and take it back whenever

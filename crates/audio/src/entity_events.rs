@@ -479,7 +479,7 @@ fn apply_viewmodel_notetrack(
         match rumble {
             Ok(rumble) => {
                 rumbles.write(crate::rumble::PlayRumble {
-                    bank_revision: bank.revision(),
+                    bank_revision: Some(bank.revision()),
                     rumble: Arc::clone(rumble),
                 });
             }

@@ -117,6 +117,12 @@ pub enum Content {
         chord: String,
         listening: bool,
     },
+    ControllerMapRow {
+        glyph: String,
+        action: String,
+        color: [f32; 4],
+        round: bool,
+    },
     TextEdit {
         label: String,
         buffer: String,
@@ -147,12 +153,21 @@ pub enum SettingKey {
     MasterVolume,
     Sensitivity,
     InvertMouse,
+    ControllerButtonLayout,
+    ControllerStickLayout,
+    ControllerSensitivity,
+    ControllerInvertPitch,
+    ControllerMoveDeadzone,
+    ControllerLookDeadzone,
+    ControllerRumble,
     PlayerName,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SettingValue {
     Resolution(frame::DisplayResolution),
+    ControllerButtonLayout(frame::ControllerButtonLayout),
+    ControllerStickLayout(frame::ControllerStickLayout),
     Bool(bool),
     Float(f32),
     Text(String),
@@ -200,6 +215,7 @@ pub enum UiIntent {
     BeginPlayerNameEdit,
     CommitPlayerNameEdit(String),
     CancelPlayerNameEdit,
+    TestControllerRumble,
     Quit,
     Disconnect,
 

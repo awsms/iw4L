@@ -36,6 +36,8 @@ pub struct ClientActionInput {
     /// Left and right sticks after their radial dead zones, X then Y.
     pub pad_move: [f32; 2],
     pub pad_look: [f32; 2],
+    pub pad_sensitivity: f32,
+    pub pad_invert_pitch: bool,
     pub sensitivity: f32,
     pub mouse_accel: f32,
     pub fov_scale: f32,
@@ -62,6 +64,8 @@ impl Default for ClientActionInput {
             mouse_y: 0.0,
             pad_move: [0.0; 2],
             pad_look: [0.0; 2],
+            pad_sensitivity: 1.0,
+            pad_invert_pitch: false,
             sensitivity: 5.0,
             mouse_accel: 0.0,
             fov_scale: 1.0,
@@ -148,9 +152,13 @@ pub fn build_usercmd(input: &mut ClientActionInput, look: &LookState, server_tim
         * PAD_PITCH_DEGREES_PER_SECOND
         * pad_frame
         * ANGLE2SHORT
-        * input.m_pitch.signum()) as i32;
-    let pad_yaw =
-        (-input.pad_look[0] * PAD_YAW_DEGREES_PER_SECOND * pad_frame * ANGLE2SHORT) as i32;
+        * input.pad_sensitivity
+        * if input.pad_invert_pitch { -1.0 } else { 1.0 }) as i32;
+    let pad_yaw = (-input.pad_look[0]
+        * PAD_YAW_DEGREES_PER_SECOND
+        * pad_frame
+        * ANGLE2SHORT
+        * input.pad_sensitivity) as i32;
     let move_axis = |digital: f32, analog: f32| {
         if digital != 0.0 { digital } else { analog }
     };
@@ -209,5 +217,25 @@ mod tests {
         // A long frame is capped at 50 ms so a stall cannot spin the view.
         assert_eq!(cmd.angles[1], (-180.0_f32 * 0.05 * ANGLE2SHORT) as i32);
         assert_eq!(cmd.angles[0], (-120.0_f32 * 0.05 * ANGLE2SHORT) as i32);
+    }
+
+    #[test]
+    fn controller_sensitivity_and_inversion_are_independent_of_mouse() {
+        let mut input = ClientActionInput {
+            pad_look: [0.0, 1.0],
+            pad_sensitivity: 2.0,
+            pad_invert_pitch: true,
+            m_pitch: 0.022,
+            ..Default::default()
+        };
+        let cmd = build_usercmd(&mut input, &LookState::default(), 0);
+        assert!(cmd.angles[0] > 0);
+        let original = cmd.angles[0];
+        input.m_pitch = -0.022;
+        let cmd = build_usercmd(&mut input, &LookState::default(), 0);
+        assert_eq!(cmd.angles[0], original);
+        input.pad_sensitivity = 1.0;
+        let cmd = build_usercmd(&mut input, &LookState::default(), 0);
+        assert!(cmd.angles[0] < original);
     }
 }

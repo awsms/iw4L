@@ -10,6 +10,8 @@ use std::collections::HashMap;
 #[derive(Component)]
 pub(crate) struct UseHintRaster;
 
+const CONTROLLER_USE_MARKER: &str = "{{button_x}}";
+
 #[derive(Default)]
 pub(crate) struct HintMemory {
     caption: Option<(
@@ -89,11 +91,15 @@ pub(crate) fn update(
         {
             return Ok(None);
         }
-        let bind = input
-            .use_key
-            .as_deref()
-            .or_else(|| strings.as_ref()?.0.text(hud_iw4::KEY_UNBOUND))
-            .ok_or_else(|| "KEY_UNBOUND localization missing".to_owned())?;
+        let bind = if input.controller_active {
+            CONTROLLER_USE_MARKER
+        } else {
+            input
+                .use_key
+                .as_deref()
+                .or_else(|| strings.as_ref()?.0.text(hud_iw4::KEY_UNBOUND))
+                .ok_or_else(|| "KEY_UNBOUND localization missing".to_owned())?
+        };
         if let Some(doors) = &snapshot.meta.map_doors
             && doors.hints.contains(&local.0)
         {
@@ -249,7 +255,27 @@ pub(crate) fn update(
     };
     let nscale = hud_iw4::r_normalized_text_scale(font.pixel_height, item.text_scale);
 
-    let width = crate::chrome::ui_text_width(font, text, item.text_scale)
+    let icon_parts = text.split_once(CONTROLLER_USE_MARKER).filter(|_| {
+        hud_images
+            .get(crate::images::HUD_CHROME_NAMESPACE, "button_x", &mut images)
+            .is_some()
+    });
+    let icon_size = hud_iw4::ui_text_height(item.text_scale) * 0.9;
+    let display_text = icon_parts
+        .is_none()
+        .then(|| text.replace(CONTROLLER_USE_MARKER, "^2(X)^7"));
+    let text_width = if let Some((before, after)) = icon_parts {
+        crate::chrome::ui_text_width(font, before, item.text_scale)
+            + icon_size
+            + crate::chrome::ui_text_width(font, after, item.text_scale)
+    } else {
+        crate::chrome::ui_text_width(
+            font,
+            display_text.as_deref().unwrap_or(text),
+            item.text_scale,
+        )
+    };
+    let width = text_width
         - if icon.is_some() {
             crate::chrome::ui_text_width(font, " ", item.text_scale)
         } else {
@@ -268,9 +294,9 @@ pub(crate) fn update(
     );
     let mut color = item.fore_color;
     color[3] *= alpha;
-    let mut cmds = vec![Draw2dCmd {
+    let text_cmd = |text: String, x: f32| Draw2dCmd {
         material_namespace: crate::images::HUD_CHROME_NAMESPACE,
-        x: rect.x,
+        x,
         y: rect.y,
         w: rect.w,
         h: rect.h,
@@ -283,7 +309,7 @@ pub(crate) fn update(
         op: Draw2dOp::TextRun {
             font: font_name.into(),
             scale: nscale,
-            text: text.clone(),
+            text,
             loc_key: key.clone(),
             style: item.text_style,
             fx: None,
@@ -291,7 +317,50 @@ pub(crate) fn update(
         },
         provenance: Draw2dProvenance::CgDraw { site: "use_hint" },
         layer: 1,
-    }];
+    };
+    let mut cmds = Vec::new();
+    if let Some((before, after)) = icon_parts {
+        let before_width = crate::chrome::ui_text_width(font, before, item.text_scale);
+        let offset = surface.scale_virtual_to_real()[0];
+        if !before.is_empty() {
+            cmds.push(text_cmd(before.to_owned(), rect.x));
+        }
+        let icon_rect = surface.apply_rect(
+            -width * 0.5 + before_width,
+            item.rect.y + height * 0.5 - icon_size * 0.8,
+            icon_size,
+            icon_size,
+            horz,
+            vert,
+        );
+        cmds.push(Draw2dCmd {
+            material_namespace: crate::images::HUD_CHROME_NAMESPACE,
+            x: icon_rect.x,
+            y: icon_rect.y,
+            w: icon_rect.w,
+            h: icon_rect.h,
+            s0: 0.0,
+            t0: 0.0,
+            s1: 1.0,
+            t1: 1.0,
+            color,
+            material: "button_x".into(),
+            op: Draw2dOp::StretchPic,
+            provenance: Draw2dProvenance::CgDraw { site: "use_hint" },
+            layer: 1,
+        });
+        if !after.is_empty() {
+            cmds.push(text_cmd(
+                after.to_owned(),
+                rect.x + (before_width + icon_size) * offset,
+            ));
+        }
+    } else {
+        cmds.push(text_cmd(
+            display_text.unwrap_or_else(|| text.clone()),
+            rect.x,
+        ));
+    }
     if let Some((namespace, image, ratio, dual)) = icon {
         if hud_images.get(*namespace, image, &mut images).is_none() {
             gaps.raise(GapCause::CursorHintMissing {

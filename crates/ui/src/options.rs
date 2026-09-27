@@ -17,15 +17,17 @@ pub enum OptionsTab {
     Video,
     Audio,
     Controls,
+    Controller,
     Multiplayer,
     Game,
 }
 
 impl OptionsTab {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Video,
         Self::Audio,
         Self::Controls,
+        Self::Controller,
         Self::Multiplayer,
         Self::Game,
     ];
@@ -39,8 +41,9 @@ impl OptionsTab {
             0 => Self::Video,
             1 => Self::Audio,
             2 => Self::Controls,
-            3 => Self::Multiplayer,
-            4 => Self::Game,
+            3 => Self::Controller,
+            4 => Self::Multiplayer,
+            5 => Self::Game,
             _ => return None,
         })
     }
@@ -50,6 +53,7 @@ impl OptionsTab {
             Self::Video => "Video",
             Self::Audio => "Audio",
             Self::Controls => "Controls",
+            Self::Controller => "Controller",
             Self::Multiplayer => "Multiplayer",
             Self::Game => "Game",
         }
@@ -131,6 +135,7 @@ impl OptionsState {
             OptionsTab::Video => "options/resolution",
             OptionsTab::Audio => "options/volume",
             OptionsTab::Controls => OptionsControlGroup::Movement.widget_id(),
+            OptionsTab::Controller => "options/controller_buttons",
             OptionsTab::Multiplayer => "options/player_name",
             OptionsTab::Game => "options/sensitivity",
         }
@@ -171,6 +176,17 @@ pub(crate) fn options_widget_is_active(state: &OptionsState, id: &str) -> bool {
             ),
             OptionsTab::Audio => id == "options/volume",
             OptionsTab::Controls => OptionsControlGroup::from_widget_id(id).is_some(),
+            OptionsTab::Controller => matches!(
+                id,
+                "options/controller_buttons"
+                    | "options/controller_sticks"
+                    | "options/controller_sensitivity"
+                    | "options/controller_invert"
+                    | "options/controller_move_deadzone"
+                    | "options/controller_look_deadzone"
+                    | "options/controller_rumble"
+                    | "options/controller_test_rumble"
+            ),
             OptionsTab::Multiplayer => id == "options/player_name",
             OptionsTab::Game => matches!(id, "options/sensitivity" | "options/invert_mouse"),
         },
@@ -278,6 +294,14 @@ pub(crate) fn drive_options_navigation(
                     | "options/fullscreen"
                     | "options/vsync"
                     | "options/invert_mouse"
+                    | "options/controller_buttons"
+                    | "options/controller_sticks"
+                    | "options/controller_sensitivity"
+                    | "options/controller_invert"
+                    | "options/controller_move_deadzone"
+                    | "options/controller_look_deadzone"
+                    | "options/controller_rumble"
+                    | "options/controller_test_rumble"
             )
         )
     {
@@ -384,6 +408,7 @@ pub(crate) fn apply_option_intents(
     mut options: ResMut<OptionsState>,
     mut bindings: ResMut<BindingView>,
     mut settings: ResMut<frame::GameSettings>,
+    mut test_rumble: MessageWriter<frame::TestControllerRumble>,
     mut focus: ResMut<Focus>,
 ) {
     for intent in intents.read() {
@@ -418,6 +443,9 @@ pub(crate) fn apply_option_intents(
                 options.name_cursor = 0;
                 options.touch();
                 focus.widget = Some("options/player_name".into());
+            }
+            UiIntent::TestControllerRumble => {
+                test_rumble.write(frame::TestControllerRumble);
             }
             UiIntent::BeginBinding { id } => {
                 bindings.listening = Some(*id);
@@ -462,6 +490,41 @@ pub(crate) fn apply_option_intents(
                     }
                     (SettingKey::InvertMouse, SettingValue::Bool(value)) => {
                         replace(&mut settings.invert_mouse, *value)
+                    }
+                    (
+                        SettingKey::ControllerButtonLayout,
+                        SettingValue::ControllerButtonLayout(value),
+                    ) => replace(&mut settings.controller_button_layout, *value),
+                    (
+                        SettingKey::ControllerStickLayout,
+                        SettingValue::ControllerStickLayout(value),
+                    ) => replace(&mut settings.controller_stick_layout, *value),
+                    (SettingKey::ControllerSensitivity, SettingValue::Float(value))
+                        if value.is_finite() =>
+                    {
+                        replace(&mut settings.controller_sensitivity, value.clamp(0.1, 5.0))
+                    }
+                    (SettingKey::ControllerInvertPitch, SettingValue::Bool(value)) => {
+                        replace(&mut settings.controller_invert_pitch, *value)
+                    }
+                    (SettingKey::ControllerMoveDeadzone, SettingValue::Float(value))
+                        if value.is_finite() =>
+                    {
+                        replace(
+                            &mut settings.controller_move_deadzone,
+                            value.clamp(0.0, 0.4),
+                        )
+                    }
+                    (SettingKey::ControllerLookDeadzone, SettingValue::Float(value))
+                        if value.is_finite() =>
+                    {
+                        replace(
+                            &mut settings.controller_look_deadzone,
+                            value.clamp(0.0, 0.4),
+                        )
+                    }
+                    (SettingKey::ControllerRumble, SettingValue::Bool(value)) => {
+                        replace(&mut settings.controller_rumble, *value)
                     }
                     (SettingKey::PlayerName, SettingValue::Text(value)) => {
                         let value: String = value.trim().chars().take(16).collect();

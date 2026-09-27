@@ -422,6 +422,7 @@ impl Default for HostClassLoadouts {
 #[derive(Resource, Clone, Debug, Default)]
 pub struct HudInputView {
     pub use_key: Option<String>,
+    pub controller_active: bool,
     pub menu_open: bool,
     pub action_slot_keys: [Option<String>; 4],
 }

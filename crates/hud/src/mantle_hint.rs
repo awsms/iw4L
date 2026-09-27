@@ -18,6 +18,7 @@ use crate::gpu_list::{HudTessPass, TessJob};
 use crate::images::HudImages;
 
 const HUD_FULLSCREEN: &str = "hud_fullscreen";
+const CONTROLLER_JUMP_MARKER: &str = "{{button_a}}";
 
 #[derive(Component)]
 pub(crate) struct MantleHintRaster;
@@ -47,6 +48,7 @@ pub(crate) fn update_mantle_hint(
     strings: Option<Res<PreparedLocalizedStrings>>,
     presented: Res<PresentedSnapshot>,
     local: Res<LocalPresentClient>,
+    input: Res<frame::HudInputView>,
     mut hud_images: ResMut<HudImages>,
     mut images: ResMut<Assets<Image>>,
     mut gaps: ResMut<HudPresentationGaps>,
@@ -96,7 +98,20 @@ pub(crate) fn update_mantle_hint(
         hide(&mut pass);
         return;
     };
-    let Some(bind) = bind_letter(strings) else {
+    let controller_icon = input.controller_active
+        && hud_images
+            .get(crate::images::HUD_CHROME_NAMESPACE, "button_a", &mut images)
+            .is_some();
+    let bind = if input.controller_active {
+        Some(if controller_icon {
+            CONTROLLER_JUMP_MARKER.to_owned()
+        } else {
+            "^2(A)^7".to_owned()
+        })
+    } else {
+        bind_letter(strings)
+    };
+    let Some(bind) = bind else {
         gaps.raise(GapCause::LocalizedRowMissing {
             key: KEY_UNBOUND.to_owned(),
         });
@@ -119,8 +134,16 @@ pub(crate) fn update_mantle_hint(
     };
 
     let nscale = r_normalized_text_scale(font.pixel_height, item.text_scale);
-    let length = ui_text_width(font, &text, item.text_scale);
     let height = ui_text_height(item.text_scale);
+    let icon_size = height * 0.9;
+    let icon_parts = text.split_once(CONTROLLER_JUMP_MARKER);
+    let length = if let Some((before, after)) = icon_parts {
+        ui_text_width(font, before, item.text_scale)
+            + icon_size
+            + ui_text_width(font, after, item.text_scale)
+    } else {
+        ui_text_width(font, &text, item.text_scale)
+    };
     let layout = cg_draw_mantle_hint_layout(
         item.rect.x,
         item.rect.y,
@@ -158,53 +181,91 @@ pub(crate) fn update_mantle_hint(
     }
 
     let font_material = assets::AssetRef::bare_name(&font.material).to_owned();
-    let list = Draw2dList {
-        cmds: vec![
-            Draw2dCmd {
-                material_namespace: crate::images::HUD_CHROME_NAMESPACE,
-                x: (text_applied.x + 0.5).floor(),
-                y: (text_applied.y + 0.5).floor(),
-                w: text_applied.w,
-                h: text_applied.h,
-                s0: 0.0,
-                t0: 0.0,
-                s1: 1.0,
-                t1: 1.0,
-                color: item.fore_color,
-                material: font_material.clone(),
-                op: Draw2dOp::TextRun {
-                    font: font_name.to_owned(),
-                    scale: nscale,
-                    text: text.clone(),
-                    loc_key: PLATFORM_MANTLE.to_owned(),
-
-                    style: item.text_style,
-                    fx: None,
-                    glow: None,
-                },
-                provenance: Draw2dProvenance::CgDraw {
-                    site: "mantle_hint",
-                },
-                layer: 1,
-            },
-            Draw2dCmd {
-                material_namespace: crate::images::HUD_CHROME_NAMESPACE,
-                x: (pic_applied.x + 0.5).floor(),
-                y: (pic_applied.y + 0.5).floor(),
-                w: pic_applied.w,
-                h: pic_applied.h,
-                s0: 0.0,
-                t0: 0.0,
-                s1: 1.0,
-                t1: 1.0,
-                color: item.fore_color,
-                material: HINT_MANTLE_MATERIAL.to_owned(),
-                op: Draw2dOp::StretchPic,
-                provenance: Draw2dProvenance::OwnerDraw(CG_OWNERDRAW_MANTLE),
-                layer: 1,
-            },
-        ],
+    let text_cmd = |text: String, x: f32| Draw2dCmd {
+        material_namespace: crate::images::HUD_CHROME_NAMESPACE,
+        x: (x + 0.5).floor(),
+        y: (text_applied.y + 0.5).floor(),
+        w: text_applied.w,
+        h: text_applied.h,
+        s0: 0.0,
+        t0: 0.0,
+        s1: 1.0,
+        t1: 1.0,
+        color: item.fore_color,
+        material: font_material.clone(),
+        op: Draw2dOp::TextRun {
+            font: font_name.to_owned(),
+            scale: nscale,
+            text,
+            loc_key: PLATFORM_MANTLE.to_owned(),
+            style: item.text_style,
+            fx: None,
+            glow: None,
+        },
+        provenance: Draw2dProvenance::CgDraw {
+            site: "mantle_hint",
+        },
+        layer: 1,
     };
+    let mut cmds = Vec::new();
+    if let Some((before, after)) = icon_parts {
+        let before_width = ui_text_width(font, before, item.text_scale);
+        let scale_x = surface.scale_virtual_to_real()[0];
+        if !before.is_empty() {
+            cmds.push(text_cmd(before.to_owned(), text_applied.x));
+        }
+        let badge = surface.apply_rect(
+            layout.text_x + before_width,
+            layout.text_y - icon_size * 0.8,
+            icon_size,
+            icon_size,
+            horz,
+            vert,
+        );
+        cmds.push(Draw2dCmd {
+            material_namespace: crate::images::HUD_CHROME_NAMESPACE,
+            x: badge.x,
+            y: badge.y,
+            w: badge.w,
+            h: badge.h,
+            s0: 0.0,
+            t0: 0.0,
+            s1: 1.0,
+            t1: 1.0,
+            color: item.fore_color,
+            material: "button_a".into(),
+            op: Draw2dOp::StretchPic,
+            provenance: Draw2dProvenance::CgDraw {
+                site: "mantle_hint",
+            },
+            layer: 1,
+        });
+        if !after.is_empty() {
+            cmds.push(text_cmd(
+                after.to_owned(),
+                text_applied.x + (before_width + icon_size) * scale_x,
+            ));
+        }
+    } else {
+        cmds.push(text_cmd(text.clone(), text_applied.x));
+    }
+    cmds.push(Draw2dCmd {
+        material_namespace: crate::images::HUD_CHROME_NAMESPACE,
+        x: (pic_applied.x + 0.5).floor(),
+        y: (pic_applied.y + 0.5).floor(),
+        w: pic_applied.w,
+        h: pic_applied.h,
+        s0: 0.0,
+        t0: 0.0,
+        s1: 1.0,
+        t1: 1.0,
+        color: item.fore_color,
+        material: HINT_MANTLE_MATERIAL.to_owned(),
+        op: Draw2dOp::StretchPic,
+        provenance: Draw2dProvenance::OwnerDraw(CG_OWNERDRAW_MANTLE),
+        layer: 1,
+    });
+    let list = Draw2dList { cmds };
     let mut fonts = HashMap::new();
     fonts.insert(font_name.to_owned(), font);
     let (quads, _) = tessellate_fonts(&list, &fonts);

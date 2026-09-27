@@ -28,5 +28,8 @@ pub use session::{
     MatchInstalled, MatchKey, MatchTornDown, ReturnedToMenu, RuntimeRole, TeardownReason, UiDraw,
     ViewSubject, WorldGeneration, WorldProducts,
 };
-pub use settings::{DisplayResolution, GameSettings};
+pub use settings::{
+    ControllerButtonLayout, ControllerStickLayout, DisplayResolution, GameSettings,
+    TestControllerRumble,
+};
 pub use ui_sound::{UiPlayMusic, UiPlaySound, UiStopMusic, register_ui_sound};
