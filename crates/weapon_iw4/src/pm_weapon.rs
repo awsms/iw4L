@@ -792,6 +792,15 @@ pub fn pm_weapon_ordinary(
     facts: &WeaponCombatFacts,
     cmd: &mut WeaponCmd,
 ) -> Option<WeaponTickEvent> {
+    pm_weapon_ordinary_with_sprint(hand, facts, cmd, false)
+}
+
+fn pm_weapon_ordinary_with_sprint(
+    hand: &mut WeaponHandState,
+    facts: &WeaponCombatFacts,
+    cmd: &mut WeaponCmd,
+    preserve_reload_during_sprint: bool,
+) -> Option<WeaponTickEvent> {
     if let Some(cooked) = crate::offhand::pm_weapon_update_grenade_throw(hand, cmd) {
         return Some(cooked);
     }
@@ -835,7 +844,9 @@ pub fn pm_weapon_ordinary(
         hand.weapon_restrict_kick_time = (hand.weapon_restrict_kick_time - cmd.msec).max(0);
     }
 
-    crate::sprint::pm_weapon_check_for_sprint(hand, facts, cmd.pm_flags);
+    if !preserve_reload_during_sprint {
+        crate::sprint::pm_weapon_check_for_sprint(hand, facts, cmd.pm_flags);
+    }
     crate::sprint::pm_weapon_advance_sprint(
         hand,
         &mut cmd.weap_flags,
@@ -1266,8 +1277,14 @@ pub fn pm_weapon_hands(
     let last = last_hand.clamp(0, 1) as usize;
     let n = hands.len().min(last + 1);
     for i in 0..n {
+        let preserve_reload_during_sprint = i == 1
+            && cmd.pm_flags & crate::sprint::PMF_SPRINTING != 0
+            && WeaponState::from_i32(hands[0].weaponstate).is_ok_and(WeaponState::is_sprint)
+            && WeaponState::from_i32(hands[1].weaponstate).is_ok_and(WeaponState::is_reload_family);
         hands[i].hand_index = i as u8;
-        if let Some(ev) = pm_weapon_ordinary(&mut hands[i], facts, cmd) {
+        if let Some(ev) =
+            pm_weapon_ordinary_with_sprint(&mut hands[i], facts, cmd, preserve_reload_during_sprint)
+        {
             out[i] = Some((i as u8, ev));
         }
     }
@@ -1414,5 +1431,51 @@ mod tests {
 
         pm_weapon_hands(&mut hand, &facts, &mut cmd, 0);
         assert_eq!(hand[0].weaponstate, WeaponState::Reloading as i32);
+    }
+
+    #[test]
+    fn akimbo_left_reload_survives_right_hand_sprint() {
+        let mut hands = [
+            WeaponHandState {
+                weapon: 1,
+                clip: 30,
+                stock: 60,
+                ..Default::default()
+            },
+            WeaponHandState {
+                weapon: 1,
+                weaponstate: WeaponState::Firing as i32,
+                weapon_time: 100,
+                clip: 29,
+                stock: 60,
+                ..Default::default()
+            },
+        ];
+        let facts = WeaponCombatFacts {
+            clip_size: 30,
+            fire_time_ms: 100,
+            reload_time_ms: 300,
+            sprint_raise_time_ms: 100,
+            ..Default::default()
+        };
+        let mut cmd = WeaponCmd {
+            msec: 16,
+            buttons: playerstate_iw4::buttons::USE_RELOAD,
+            pm_flags: crate::sprint::PMF_SPRINTING,
+            last_weapon_hand: 1,
+            cmd_weapon: 1,
+            cmd_weapon_owned: true,
+            ..Default::default()
+        };
+
+        let events = pm_weapon_hands(&mut hands, &facts, &mut cmd, 1);
+        assert_eq!(events[1], Some((1, WeaponTickEvent::ReloadStarted)));
+        assert_eq!(hands[0].weaponstate, WeaponState::SprintIn as i32);
+        assert_eq!(hands[1].weaponstate, WeaponState::Reloading as i32);
+
+        cmd.old_buttons = cmd.buttons;
+        pm_weapon_hands(&mut hands, &facts, &mut cmd, 1);
+        assert_eq!(hands[0].weaponstate, WeaponState::SprintIn as i32);
+        assert_eq!(hands[1].weaponstate, WeaponState::Reloading as i32);
     }
 }

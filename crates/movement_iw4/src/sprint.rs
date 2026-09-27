@@ -1,4 +1,4 @@
-use playerstate_iw4::{PlayerState, UserCmd};
+use playerstate_iw4::{PlayerState, UserCmd, buttons};
 
 pub const PMF_SPRINTING: u32 = 0x4000;
 
@@ -38,6 +38,17 @@ const PMF_SPRINT_BLOCKED: u32 = 0x0002_0000;
 
 const BUTTON_SPRINT: u32 = 0x2;
 
+fn sprint_interfering_buttons(ps: &PlayerState, buttons: u32, mask: u32) -> bool {
+    // Akimbo can reload one hand while the other enters its sprint animation.
+    // The combined controller action must not cancel that sprint.
+    let mask = if ps.last_weapon_hand == 1 {
+        mask & !buttons::USE_RELOAD
+    } else {
+        mask
+    };
+    buttons & mask != 0
+}
+
 pub const PERK_MARATHON: u32 = 0x0200_0000;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -67,7 +78,7 @@ pub fn pm_sprint_start_interfering_buttons(
     let flags = ps.pm_flags;
     if (flags & 8) != 0
         || sprint_forward_below_minimum(forwardmove, forward_minimum)
-        || (buttons & 0xcc35) != 0
+        || sprint_interfering_buttons(ps, buttons, 0xcc35)
     {
         return true;
     }
@@ -87,7 +98,7 @@ pub fn pm_sprint_ending_buttons(
     let flags = ps.pm_flags;
     if (flags & 0x8018) != 0
         || sprint_forward_below_minimum(forwardmove, forward_minimum)
-        || (buttons & 0xcf35) != 0
+        || sprint_interfering_buttons(ps, buttons, 0xcf35)
     {
         return true;
     }
@@ -270,4 +281,41 @@ fn end_for_dead_movement_type(ps: &mut PlayerState, cmd: &UserCmd) -> SprintResu
         ps.sprint_button_up_required = 1;
     }
     SprintResult::Ended
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn combined_use_reload_does_not_interrupt_akimbo_sprint() {
+        let ps = PlayerState {
+            last_weapon_hand: 1,
+            ..PlayerState::ZERO
+        };
+        let buttons = BUTTON_SPRINT | buttons::USE_RELOAD;
+        assert!(!pm_sprint_start_interfering_buttons(&ps, 127, buttons, 105));
+        assert!(!pm_sprint_ending_buttons(&ps, 127, buttons, 105));
+
+        let single = PlayerState {
+            last_weapon_hand: 0,
+            ..ps
+        };
+        assert!(pm_sprint_start_interfering_buttons(
+            &single, 127, buttons, 105
+        ));
+        assert!(pm_sprint_ending_buttons(&single, 127, buttons, 105));
+        assert!(pm_sprint_start_interfering_buttons(
+            &ps,
+            127,
+            BUTTON_SPRINT | buttons::RELOAD,
+            105
+        ));
+        assert!(pm_sprint_ending_buttons(
+            &ps,
+            127,
+            BUTTON_SPRINT | buttons::RELOAD,
+            105
+        ));
+    }
 }
