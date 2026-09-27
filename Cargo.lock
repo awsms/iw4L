@@ -571,7 +571,6 @@ dependencies = [
  "gamemode_iw4",
  "hud_iw4",
  "killcam_iw4",
- "libc",
  "movement_iw4",
  "net",
  "perf",

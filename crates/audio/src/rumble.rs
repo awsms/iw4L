@@ -150,12 +150,6 @@ struct RumblePlayback {
     active: Vec<(i32, Arc<Rumble>)>,
     output: Option<(Entity, GamepadRumbleIntensity)>,
     next_refresh_ms: i32,
-    #[cfg(target_os = "linux")]
-    native: Option<crate::linux_rumble::LinuxRumble>,
-    #[cfg(target_os = "linux")]
-    next_native_open_ms: i32,
-    #[cfg(target_os = "linux")]
-    native_gamepad: Option<Entity>,
 }
 
 pub(crate) fn register(app: &mut App) {
@@ -199,7 +193,7 @@ fn update(
     generation: Res<frame::WorldGeneration>,
     time: Res<Time<Real>>,
     settings: Res<frame::GameSettings>,
-    gamepads: Query<(Entity, &Gamepad, Option<&Name>)>,
+    gamepads: Query<Entity, With<Gamepad>>,
     mut state: Local<RumblePlayback>,
     mut output: MessageWriter<GamepadRumbleRequest>,
 ) {
@@ -251,31 +245,7 @@ fn update(
         intensity.strong_motor = intensity.strong_motor.max(current.strong_motor);
         intensity.weak_motor = intensity.weak_motor.max(current.weak_motor);
     }
-    let selected = gamepads
-        .iter()
-        .min_by_key(|(entity, _, _)| entity.to_bits());
-    let selected_entity = selected.map(|(entity, _, _)| entity);
-    #[cfg(target_os = "linux")]
-    {
-        if state.native_gamepad != selected_entity {
-            state.native = None;
-            state.native_gamepad = selected_entity;
-            state.next_native_open_ms = 0;
-        }
-        if selected.is_some_and(|(_, pad, name)| {
-            pad.vendor_id() == Some(0x045e) || name.is_some_and(|name| name.starts_with("Xbox"))
-        }) && state.native.is_none()
-            && now >= state.next_native_open_ms
-        {
-            match crate::linux_rumble::LinuxRumble::open_xbox() {
-                Ok(native) => state.native = Some(native),
-                Err(err) => {
-                    warn!("Xbox vibration device unavailable: {err}");
-                    state.next_native_open_ms = now.saturating_add(5000);
-                }
-            }
-        }
-    }
+    let selected_entity = gamepads.iter().min_by_key(|entity| entity.to_bits());
     if state
         .output
         .is_some_and(|(entity, _)| Some(entity) != selected_entity)
@@ -291,16 +261,6 @@ fn update(
             if state.output.is_some_and(|(_, previous)| {
                 previous.strong_motor > 0.0 || previous.weak_motor > 0.0
             }) {
-                #[cfg(target_os = "linux")]
-                if let Some(native) = state.native.as_mut() {
-                    if let Err(err) = native.set(0.0, 0.0) {
-                        warn!("Xbox vibration stop failed: {err}");
-                        state.native = None;
-                    }
-                } else {
-                    output.write(GamepadRumbleRequest::Stop { gamepad });
-                }
-                #[cfg(not(target_os = "linux"))]
                 output.write(GamepadRumbleRequest::Stop { gamepad });
             }
             state.next_refresh_ms = 0;
@@ -310,33 +270,14 @@ fn update(
             now,
             state.next_refresh_ms,
         ) {
-            #[cfg(target_os = "linux")]
-            if let Some(native) = state.native.as_mut() {
-                if let Err(err) = native.set(intensity.strong_motor, intensity.weak_motor) {
-                    warn!("Xbox vibration failed: {err}");
-                    state.native = None;
-                }
-            } else {
-                if state.output.is_some() {
-                    output.write(GamepadRumbleRequest::Stop { gamepad });
-                }
-                output.write(GamepadRumbleRequest::Add {
-                    gamepad,
-                    duration: std::time::Duration::from_millis(160),
-                    intensity,
-                });
+            if state.output.is_some() {
+                output.write(GamepadRumbleRequest::Stop { gamepad });
             }
-            #[cfg(not(target_os = "linux"))]
-            {
-                if state.output.is_some() {
-                    output.write(GamepadRumbleRequest::Stop { gamepad });
-                }
-                output.write(GamepadRumbleRequest::Add {
-                    gamepad,
-                    duration: std::time::Duration::from_millis(160),
-                    intensity,
-                });
-            }
+            output.write(GamepadRumbleRequest::Add {
+                gamepad,
+                duration: std::time::Duration::from_millis(160),
+                intensity,
+            });
             state.next_refresh_ms = now.saturating_add(80);
         }
         state.output = Some((gamepad, intensity));

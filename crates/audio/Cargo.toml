@@ -23,8 +23,5 @@ gamemode_iw4.workspace = true
 perf.workspace = true
 symphonia = { version = "0.5", default-features = false, features = ["mp3", "pcm", "wav", "adpcm"] }
 
-[target.'cfg(target_os = "linux")'.dependencies]
-libc = "0.2"
-
 [lints]
 workspace = true
