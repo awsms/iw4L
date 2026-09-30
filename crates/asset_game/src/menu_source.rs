@@ -20,30 +20,69 @@ struct Variant {
     #[serde(default)]
     fields: BTreeMap<String, Value>,
     #[serde(default)]
-    item_overrides: Vec<ItemOverride>,
+    item_overrides: Vec<ItemPatch>,
     #[serde(default)]
     append_items: Vec<MenuItem>,
     #[serde(default)]
-    item_copies: Vec<ItemCopy>,
+    item_copies: Vec<ItemPatch>,
     #[serde(default)]
     open_prefix: Vec<MenuEvent>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ItemOverride {
+struct ItemPatch {
     #[serde(default)]
     name: Option<String>,
     #[serde(default)]
     index: Option<usize>,
+    #[serde(default)]
+    dvar: Option<String>,
+    #[serde(default)]
+    text_key: Option<String>,
+    #[serde(default)]
+    item_type: Option<i32>,
+    #[serde(default)]
+    optional: bool,
     fields: BTreeMap<String, Value>,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ItemCopy {
-    index: usize,
-    fields: BTreeMap<String, Value>,
+impl ItemPatch {
+    fn resolve(&self, menu: &MenuDef) -> Result<Option<usize>, String> {
+        let selectors = [
+            self.name.is_some(),
+            self.index.is_some(),
+            self.dvar.is_some(),
+            self.text_key.is_some(),
+        ];
+        if selectors.into_iter().filter(|set| *set).count() != 1 {
+            return Err(format!(
+                "Menu `{}` item patch requires one selector",
+                menu.name
+            ));
+        }
+        // Localized/modified fastfiles do not share item indices. A text key
+        // can also label both a navigation button and a heading, so allow a
+        // type discriminator while still requiring exactly one matching item.
+        let mut matches = menu.items.iter().enumerate().filter(|(index, item)| {
+            self.index.is_none_or(|selected| selected == *index)
+                && self.name.as_ref().is_none_or(|name| name == &item.name)
+                && self.dvar.as_ref().is_none_or(|dvar| dvar == &item.dvar)
+                && self
+                    .text_key
+                    .as_ref()
+                    .is_none_or(|key| key == &item.text_key)
+                && self.item_type.is_none_or(|kind| kind == item.item_type)
+        });
+        match (matches.next(), matches.next()) {
+            (Some((index, _)), None) => Ok(Some(index)),
+            (None, None) if self.optional => Ok(None),
+            _ => Err(format!(
+                "Menu `{}` has no unique item matching name={:?}, index={:?}, dvar={:?}, text_key={:?}, item_type={:?}",
+                menu.name, self.name, self.index, self.dvar, self.text_key, self.item_type
+            )),
+        }
+    }
 }
 
 fn merge(target: &mut Value, fields: BTreeMap<String, Value>) -> Result<(), String> {
@@ -87,37 +126,10 @@ pub(crate) fn load(source: &str, catalog: &MenuCatalog) -> Result<Vec<MenuDef>, 
                     .map_err(|error| format!("Menu `{}`: {error}", variant.name))?;
                 def.name = variant.name;
                 for item in variant.item_overrides {
-                    let index = match (item.name.as_ref(), item.index) {
-                        (Some(name), None) => {
-                            let matches: Vec<_> = def
-                                .items
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, item)| &item.name == name)
-                                .map(|(index, _)| index)
-                                .collect();
-                            match matches.as_slice() {
-                                [index] => *index,
-                                _ => {
-                                    return Err(format!(
-                                        "Menu `{}` has no unique item `{name}`",
-                                        def.name
-                                    ));
-                                }
-                            }
-                        }
-                        (None, Some(index)) => index,
-                        _ => {
-                            return Err(format!(
-                                "Menu `{}` item override requires one selector",
-                                def.name
-                            ));
-                        }
+                    let Some(index) = item.resolve(&def)? else {
+                        continue;
                     };
-                    let target = def
-                        .items
-                        .get_mut(index)
-                        .ok_or_else(|| format!("Menu `{}` has no item {index}", def.name))?;
+                    let target = &mut def.items[index];
                     let mut value =
                         serde_json::to_value(&*target).map_err(|error| error.to_string())?;
                     merge(&mut value, item.fields)?;
@@ -125,9 +137,10 @@ pub(crate) fn load(source: &str, catalog: &MenuCatalog) -> Result<Vec<MenuDef>, 
                         .map_err(|error| format!("Menu `{}` item {index}: {error}", def.name))?;
                 }
                 for copy in variant.item_copies {
-                    let source = base.items.get(copy.index).ok_or_else(|| {
-                        format!("Menu `{}` has no source item {}", variant.base, copy.index)
-                    })?;
+                    let Some(index) = copy.resolve(base)? else {
+                        continue;
+                    };
+                    let source = &base.items[index];
                     let mut value =
                         serde_json::to_value(source).map_err(|error| error.to_string())?;
                     merge(&mut value, copy.fields)?;

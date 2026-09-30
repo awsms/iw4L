@@ -19,85 +19,61 @@
   },
   "item_overrides": [
    {
-    "index": 22,
+    "name": "video_resolution",
     "fields": {
      "vis_exp": "0"
     }
    },
    {
-    "index": 23,
+    "name": "video_resolution_label",
     "fields": {
      "vis_exp": "0"
     }
    },
    {
-    "index": 24,
+    "name": "video_brightness",
     "fields": {
      "vis_exp": "0"
     }
    },
    {
-    "index": 25,
+    "name": "video_brightness_label",
     "fields": {
      "vis_exp": "0"
     }
    },
    {
-    "index": 26,
+    "name": "video_display_mode",
     "fields": {
      "vis_exp": "0"
     }
    },
    {
-    "index": 27,
+    "name": "video_display_mode_label",
     "fields": {
      "vis_exp": "0"
     }
    },
    {
-    "index": 28,
+    "name": "video_advanced",
     "fields": {
      "vis_exp": "0"
     }
    },
    {
-    "index": 29,
+    "name": "video_fov",
     "fields": {
      "vis_exp": "0"
     }
    },
    {
-    "index": 30,
+    "name": "video_fov_label",
     "fields": {
      "vis_exp": "0"
     }
    },
    {
-    "index": 31,
-    "fields": {
-     "vis_exp": "0"
-    }
-   },
-   {
-    "index": 32,
-    "fields": {
-     "vis_exp": "0"
-    }
-   },
-   {
-    "index": 33,
-    "fields": {
-     "vis_exp": "0"
-    }
-   },
-   {
-    "index": 34,
-    "fields": {
-     "vis_exp": "0"
-    }
-   },
-   {
-    "index": 21,
+    "name": "video_title",
     "fields": {
      "text_key": "Controller"
     }
@@ -105,7 +81,7 @@
   ],
   "item_copies": [
    {
-    "index": 27,
+    "name": "video_display_mode",
     "fields": {
      "item_type": 12,
      "static_flags": 0,
@@ -180,11 +156,12 @@
       0,
       0,
       0
-     ]
+     ],
+     "name": "ui_pad_layout"
     }
    },
    {
-    "index": 28,
+    "name": "video_display_mode_label",
     "fields": {
      "vis_exp": "1",
      "text_key": "Button Layout",
@@ -194,11 +171,12 @@
       "w": 344,
       "h": 20
      },
-     "text_scale": 0.32
+     "text_scale": 0.32,
+     "name": "controller_label_1"
     }
    },
    {
-    "index": 27,
+    "name": "video_display_mode",
     "fields": {
      "item_type": 12,
      "static_flags": 0,
@@ -265,11 +243,12 @@
       0,
       0,
       0
-     ]
+     ],
+     "name": "ui_pad_stick_layout"
     }
    },
    {
-    "index": 28,
+    "name": "video_display_mode_label",
     "fields": {
      "vis_exp": "1",
      "text_key": "Stick Layout",
@@ -279,11 +258,12 @@
       "w": 344,
       "h": 20
      },
-     "text_scale": 0.32
+     "text_scale": 0.32,
+     "name": "controller_label_3"
     }
    },
    {
-    "index": 24,
+    "name": "video_brightness",
     "fields": {
      "item_type": 10,
      "static_flags": 0,
@@ -327,12 +307,15 @@
      "slider": {
       "min": 1,
       "max": 10,
-      "step": 0.5
-     }
+      "step": 0.5,
+      "display_range": null,
+      "suffix": ""
+     },
+     "name": "ui_pad_sensitivity"
     }
    },
    {
-    "index": 29,
+    "name": "video_brightness_label",
     "fields": {
      "text_key": "Look Sensitivity",
      "vis_exp": "1",
@@ -341,11 +324,12 @@
       "y": 68,
       "w": 344,
       "h": 20
-     }
+     },
+     "name": "controller_label_5"
     }
    },
    {
-    "index": 24,
+    "name": "video_brightness",
     "fields": {
      "item_type": 10,
      "static_flags": 0,
@@ -395,11 +379,12 @@
        150
       ],
       "suffix": "%"
-     }
+     },
+     "name": "ui_pad_ads_sensitivity"
     }
    },
    {
-    "index": 29,
+    "name": "video_brightness_label",
     "fields": {
      "text_key": "ADS Sensitivity",
      "vis_exp": "1",
@@ -408,11 +393,12 @@
       "y": 88,
       "w": 344,
       "h": 20
-     }
+     },
+     "name": "controller_label_7"
     }
    },
    {
-    "index": 27,
+    "name": "video_display_mode",
     "fields": {
      "item_type": 12,
      "static_flags": 0,
@@ -471,11 +457,12 @@
       0,
       0,
       0
-     ]
+     ],
+     "name": "ui_pad_invert"
     }
    },
    {
-    "index": 28,
+    "name": "video_display_mode_label",
     "fields": {
      "vis_exp": "1",
      "text_key": "Look Inversion",
@@ -485,11 +472,12 @@
       "w": 344,
       "h": 20
      },
-     "text_scale": 0.32
+     "text_scale": 0.32,
+     "name": "controller_label_9"
     }
    },
    {
-    "index": 27,
+    "name": "video_display_mode",
     "fields": {
      "item_type": 12,
      "static_flags": 0,
@@ -552,11 +540,12 @@
       0,
       0,
       0
-     ]
+     ],
+     "name": "ui_pad_curve"
     }
    },
    {
-    "index": 28,
+    "name": "video_display_mode_label",
     "fields": {
      "vis_exp": "1",
      "text_key": "Response Curve",
@@ -566,11 +555,12 @@
       "w": 344,
       "h": 20
      },
-     "text_scale": 0.32
+     "text_scale": 0.32,
+     "name": "controller_label_11"
     }
    },
    {
-    "index": 27,
+    "name": "video_display_mode",
     "fields": {
      "item_type": 12,
      "static_flags": 0,
@@ -625,11 +615,12 @@
       0,
       0,
       0
-     ]
+     ],
+     "name": "ui_pad_aim_assist"
     }
    },
    {
-    "index": 28,
+    "name": "video_display_mode_label",
     "fields": {
      "vis_exp": "1",
      "text_key": "Aim Assist",
@@ -639,11 +630,12 @@
       "w": 344,
       "h": 20
      },
-     "text_scale": 0.32
+     "text_scale": 0.32,
+     "name": "controller_label_13"
     }
    },
    {
-    "index": 27,
+    "name": "video_display_mode",
     "fields": {
      "item_type": 12,
      "static_flags": 0,
@@ -702,11 +694,12 @@
       0,
       0,
       0
-     ]
+     ],
+     "name": "ui_pad_vibration"
     }
    },
    {
-    "index": 28,
+    "name": "video_display_mode_label",
     "fields": {
      "vis_exp": "1",
      "text_key": "Vibration",
@@ -716,11 +709,12 @@
       "w": 344,
       "h": 20
      },
-     "text_scale": 0.32
+     "text_scale": 0.32,
+     "name": "controller_label_15"
     }
    },
    {
-    "index": 24,
+    "name": "video_brightness",
     "fields": {
      "item_type": 10,
      "static_flags": 0,
@@ -770,11 +764,12 @@
        40
       ],
       "suffix": "%"
-     }
+     },
+     "name": "ui_pad_deadzone_left"
     }
    },
    {
-    "index": 29,
+    "name": "video_brightness_label",
     "fields": {
      "text_key": "Left Stick Deadzone",
      "vis_exp": "1",
@@ -783,11 +778,12 @@
       "y": 188,
       "w": 344,
       "h": 20
-     }
+     },
+     "name": "controller_label_17"
     }
    },
    {
-    "index": 24,
+    "name": "video_brightness",
     "fields": {
      "item_type": 10,
      "static_flags": 0,
@@ -837,11 +833,12 @@
        40
       ],
       "suffix": "%"
-     }
+     },
+     "name": "ui_pad_deadzone_right"
     }
    },
    {
-    "index": 29,
+    "name": "video_brightness_label",
     "fields": {
      "text_key": "Right Stick Deadzone",
      "vis_exp": "1",
@@ -850,11 +847,12 @@
       "y": 208,
       "w": 344,
       "h": 20
-     }
+     },
+     "name": "controller_label_19"
     }
    },
    {
-    "index": 27,
+    "name": "video_display_mode",
     "fields": {
      "item_type": 12,
      "static_flags": 0,
@@ -921,11 +919,12 @@
       0,
       0,
       0
-     ]
+     ],
+     "name": "ui_pad_prompts"
     }
    },
    {
-    "index": 28,
+    "name": "video_display_mode_label",
     "fields": {
      "vis_exp": "1",
      "text_key": "Controller Prompts",
@@ -935,11 +934,12 @@
       "w": 344,
       "h": 20
      },
-     "text_scale": 0.32
+     "text_scale": 0.32,
+     "name": "controller_label_21"
     }
    },
    {
-    "index": 27,
+    "name": "video_display_mode",
     "fields": {
      "item_type": 1,
      "static_flags": 0,
@@ -987,11 +987,12 @@
       0,
       0,
       0
-     ]
+     ],
+     "name": "controller_label_22"
     }
    },
    {
-    "index": 28,
+    "name": "video_display_mode_label",
     "fields": {
      "vis_exp": "1",
      "text_key": "Test Vibration",
@@ -1001,7 +1002,8 @@
       "w": 344,
       "h": 20
      },
-     "text_scale": 0.32
+     "text_scale": 0.32,
+     "name": "controller_label_23"
     }
    }
   ]
